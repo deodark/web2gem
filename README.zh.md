@@ -143,6 +143,8 @@ curl https://your-web2gem.example/v1beta/models/gemini-3.5-flash:generateContent
 
 从项目 [Releases](https://github.com/Guardinary/web2gem/releases) 页面下载构建产物 `worker.js`，在 Cloudflare Worker 控制台打开你的 Worker，将 Worker 源码替换为该文件内容。然后在 Worker 控制台设置中添加 `nodejs_compat` 兼容性标记。
 
+![Cloudflare Worker 设置中的 nodejs_compat 兼容性标记](./docs/images/cloudflare-worker-settings-nodejs-compat.png)
+
 每个 Release 会发布这些文件：
 
 | 文件 | 用途 |
@@ -152,9 +154,9 @@ curl https://your-web2gem.example/v1beta/models/gemini-3.5-flash:generateContent
 | `web2gem_<tag>_docker_linux_arm64.tar.gz` | `linux/arm64` Docker 镜像归档。 |
 | `sha256sums.txt` | 发布文件校验和。 |
 
-![Cloudflare Worker 设置中的 nodejs_compat 兼容性标记](./docs/images/cloudflare-worker-settings-nodejs-compat.png)
-
 Secrets 是可选项。在 Worker 控制台中打开该 Worker 的设置页，只为需要的功能添加变量或 Secrets。需要保护共享访问时设置 `API_KEYS`；需要 Pro 路由或大上下文文本附件时设置 `GEMINI_COOKIE`。
+
+![Cloudflare Worker 设置中的 secrets](./docs/images/cloudflare-worker-settings-secrets-GEMINI_COOKIE.png)
 
 如果不使用 Release 产物、而是从源码构建，`pnpm deploy` 会构建 `dist/worker.js`，并通过仓库内的 `wrangler.toml` 部署。
 

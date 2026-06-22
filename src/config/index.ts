@@ -34,7 +34,7 @@ export const CONFIG = {
 
   // Gemini cookie。匿名访问对所有模型都可用,唯独真正的 Pro 路由需要它。
   // 原始 cookie 字符串,例如:
-  //   "__Secure-1PSID=...;__Secure-1PSIDTS=...;SAPISID=...; "
+  //   "__Secure-1PSID=...;__Secure-1PSIDTS=...;SAPISID=..."
   // 匿名就留空 ""。(出于安全考虑,建议把它设为 Worker secret。)
   GEMINI_COOKIE: "",
   SAPISID: "", // 可选;留空则自动从上面的 cookie 中提取

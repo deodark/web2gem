@@ -143,6 +143,8 @@ Both deployment modes can run without secrets. Configure optional secrets only w
 
 Download the release build artifact `worker.js` from the [Releases](https://github.com/Guardinary/web2gem/releases) page, open your Cloudflare Worker in the dashboard, and replace the Worker source with the contents of that file. In the Worker dashboard settings, add the `nodejs_compat` compatibility flag.
 
+![Cloudflare Worker settings showing nodejs_compat](./docs/images/cloudflare-worker-settings-nodejs-compat.png)
+
 Each release publishes these assets:
 
 | Asset | Use |
@@ -152,9 +154,9 @@ Each release publishes these assets:
 | `web2gem_<tag>_docker_linux_arm64.tar.gz` | Docker image archive for `linux/arm64`. |
 | `sha256sums.txt` | Checksums for the released files. |
 
-![Cloudflare Worker settings showing nodejs_compat](./docs/images/cloudflare-worker-settings-nodejs-compat.png)
-
 Secrets are optional. In the Worker dashboard, open the Worker settings and add variables/secrets only for the features you need. Set `API_KEYS` when you want to protect shared access, and set `GEMINI_COOKIE` when Pro routing or large-context text attachments are needed.
+
+![Cloudflare Worker settings showing secrets](./docs/images/cloudflare-worker-settings-secrets-GEMINI_COOKIE.png)
 
 If you build from source instead of using a release artifact, `pnpm deploy` builds `dist/worker.js` and deploys it through the checked-in `wrangler.toml`.
 
