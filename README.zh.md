@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh.md)
 
-面向 Gemini Web 的 OpenAI 兼容和 Google Gemini 兼容 HTTP 适配器，可部署到 Cloudflare Workers，也可作为 Docker 服务自托管。
+面向 Gemini Web 的 OpenAI 兼容和 Google Gemini 兼容 HTTP 适配器，可部署到 Cloudflare Workers，也可作为 Docker 服务自托管。零成本, 跨平台, 单文件。
 
 TypeScript 代码位于 `src/`，本地质量检查脚本位于 `scripts/`，`dist/worker.js` 由 `pnpm build` 生成并用于 Wrangler 部署，`scripts/docker-server.mjs` 提供 Docker HTTP 适配层。
 
@@ -50,6 +50,7 @@ TypeScript 代码位于 `src/`，本地质量检查脚本位于 `scripts/`，`di
 
 | 功能                  | 说明                                                                                                           |
 | --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Flash 模型开箱即用   | 无需任何鉴权，也无需任何配置，部署单文件即可开始使用flash模型，无用量限制，完全免费。                          |
 | OpenAI 兼容 API       | Chat Completions 和 Responses 端点，支持流式输出。                                                             |
 | Google 兼容 API       | 面向 Gemini 风格客户端的 `generateContent` 和 `streamGenerateContent` 路由。                                   |
 | 工具调用              | 将工具定义转换为提示词指令，并把 DSML/XML 风格工具调用输出解析回 API 响应。                                    |
