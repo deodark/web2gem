@@ -12,6 +12,9 @@ export type ResolvedModel =
   | { name: string; modeId: number; thinkMode: number; extra: Record<number, unknown> | null; error?: undefined }
   | { error: string; name?: undefined; modeId?: undefined; thinkMode?: undefined; extra?: undefined };
 
+export const MIN_THINK_LEVEL = 0;
+export const MAX_THINK_LEVEL = 4;
+
 export const MODELS: Record<string, ModelConfig> = {
   "gemini-3.5-flash": { mode: 1, think: 4, desc: "Fast general-purpose model" },
   "gemini-3.5-flash-thinking": { mode: 2, think: 0, desc: "Deep thinking mode, longest output (~20k chars)" },
@@ -31,13 +34,16 @@ export const MODELS: Record<string, ModelConfig> = {
 export function resolveModel(modelName: unknown, def: unknown): ResolvedModel {
   const hasExplicitModel = modelName !== undefined && modelName !== null;
   let name = String(hasExplicitModel ? modelName : def || "").trim();
-  let thinkOverride = null;
+  let thinkOverride: number | null = null;
   if (name.includes("@think=")) {
     const idx = name.lastIndexOf("@think=");
     const thinkStr = name.slice(idx + "@think=".length);
     name = name.slice(0, idx);
-    if (!/^-?\d+$/.test(thinkStr)) return { error: `Invalid think level: ${thinkStr}` };
+    if (!/^\d+$/.test(thinkStr)) return { error: `Invalid think level: ${thinkStr}; supported values are ${MIN_THINK_LEVEL}..${MAX_THINK_LEVEL}` };
     thinkOverride = parseInt(thinkStr, 10);
+    if (thinkOverride < MIN_THINK_LEVEL || thinkOverride > MAX_THINK_LEVEL) {
+      return { error: `Invalid think level: ${thinkStr}; supported values are ${MIN_THINK_LEVEL}..${MAX_THINK_LEVEL}` };
+    }
   }
   const cfg = MODELS[name];
   if (!cfg) {

@@ -2,6 +2,24 @@ import { trimContinuationOverlap } from "../../shared/tokens";
 
 const STREAM_APPEND_PROBE_CHARS = 64;
 
+type WrbLineParseIssue =
+  | "ok"
+  | "not_wrb_line"
+  | "invalid_envelope_json"
+  | "invalid_envelope_shape"
+  | "missing_inner_payload"
+  | "invalid_inner_json"
+  | "invalid_inner_shape"
+  | "missing_text_parts"
+  | "empty_text_parts";
+
+type WrbLineParseResult = {
+  texts: string[];
+  issue: WrbLineParseIssue;
+  parsedEnvelope: boolean;
+  parsedInner: boolean;
+};
+
 export function stripArtifacts(text: unknown): string {
   let source = String(text || "");
   if (!source) return "";
@@ -29,31 +47,81 @@ export function cleanText(text: unknown): string {
 }
 
 export function extractTextsFromLine(line: unknown): string[] {
+  return parseWrbLine(line).texts;
+}
+
+export function wrbResponseShapeSummary(raw: unknown): string {
+  const source = String(raw || "");
+  let lines = 0;
+  let wrbLines = 0;
+  let parsedEnvelopes = 0;
+  let parsedInners = 0;
+  let textParts = 0;
+  const issues: Record<string, number> = {};
+  for (const line of iterateLines(source)) {
+    if (!line) continue;
+    lines += 1;
+    const parsed = parseWrbLine(line);
+    if (parsed.issue === "not_wrb_line") continue;
+    wrbLines += 1;
+    if (parsed.parsedEnvelope) parsedEnvelopes += 1;
+    if (parsed.parsedInner) parsedInners += 1;
+    textParts += parsed.texts.length;
+    if (parsed.issue !== "ok") issues[parsed.issue] = (issues[parsed.issue] || 0) + 1;
+  }
+  const topIssue = Object.entries(issues).sort((a, b) => b[1] - a[1])[0];
+  return [
+    `lines=${lines}`,
+    `wrbLines=${wrbLines}`,
+    `parsedEnvelopes=${parsedEnvelopes}`,
+    `parsedInnerPayloads=${parsedInners}`,
+    `textParts=${textParts}`,
+    topIssue ? `topIssue=${topIssue[0]}:${topIssue[1]}` : "",
+  ].filter(Boolean).join(" ");
+}
+
+function parseWrbLine(line: unknown): WrbLineParseResult {
   const source = String(line || "");
-  if (!isWrbResponseLineCandidate(source)) return [];
+  if (!isWrbResponseLineCandidate(source)) return wrbLineIssue("not_wrb_line");
+  let arr: unknown;
   try {
-    const arr = JSON.parse(source);
-    if (!Array.isArray(arr) || !Array.isArray(arr[0])) return [];
-    const innerStr = arr[0][2];
-    if (typeof innerStr !== "string" || innerStr.length < 50) return [];
-    const inner = JSON.parse(innerStr);
-    if (!(Array.isArray(inner) && inner.length > 4 && inner[4])) return [];
-    const texts: string[] = [];
-    for (const part of inner[4]) {
-      if (Array.isArray(part) && part.length > 1 && part[1] && Array.isArray(part[1])) {
-        for (const t of part[1]) {
-          if (typeof t === "string" && t) texts.push(t);
-        }
+    arr = JSON.parse(source);
+  } catch (_) {
+    return wrbLineIssue("invalid_envelope_json");
+  }
+  if (!Array.isArray(arr) || !Array.isArray(arr[0])) return wrbLineIssue("invalid_envelope_shape");
+  const innerStr = arr[0][2];
+  if (typeof innerStr !== "string") return wrbLineIssue("missing_inner_payload", true);
+  let inner: unknown;
+  try {
+    inner = JSON.parse(innerStr);
+  } catch (_) {
+    return wrbLineIssue("invalid_inner_json", true);
+  }
+  if (!(Array.isArray(inner) && inner.length > 4)) return wrbLineIssue("invalid_inner_shape", true, true);
+  const textGroups = inner[4];
+  if (!Array.isArray(textGroups)) return wrbLineIssue("missing_text_parts", true, true);
+  const texts: string[] = [];
+  for (const part of textGroups) {
+    if (Array.isArray(part) && part.length > 1 && part[1] && Array.isArray(part[1])) {
+      for (const t of part[1]) {
+        if (typeof t === "string" && t) texts.push(t);
       }
     }
-    return texts;
-  } catch (_) {
-    return [];
   }
+  return {
+    texts,
+    issue: texts.length ? "ok" : "empty_text_parts",
+    parsedEnvelope: true,
+    parsedInner: true,
+  };
+}
+
+function wrbLineIssue(issue: WrbLineParseIssue, parsedEnvelope = false, parsedInner = false): WrbLineParseResult {
+  return { texts: [], issue, parsedEnvelope, parsedInner };
 }
 
 function isWrbResponseLineCandidate(source: string): boolean {
-  if (source.length < 200) return false;
   let i = skipJsonWhitespace(source, 0);
   if (source.charCodeAt(i) !== 91) return false; // [
   i = skipJsonWhitespace(source, i + 1);

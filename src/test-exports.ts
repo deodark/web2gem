@@ -1,5 +1,5 @@
 // Internal compatibility surface used by local unit and smoke tests.
-export { buildHeaders, buildPayload, cleanText, extractResponseText, extractTextsFromLine, generate, generateStream, getUrl } from "./gemini/client";
+export { buildHeaders, buildPayload, cleanText, extractResponseText, extractTextsFromLine, generate, generateStream, getUrl, wrbResponseShapeSummary } from "./gemini/client";
 export { createGeminiCompletionProvider } from "./gemini/completion-provider";
 export { createStreamTextExtractor, stripArtifacts } from "./gemini/client/parser";
 export { configWithCachedGeminiBuildLabel, getCachedGeminiBuildLabel, getFreshGeminiBuildLabel, resetGeminiBuildLabelCacheForTest, setCachedGeminiBuildLabel, waitBeforeRetry } from "./gemini/client/retry";
@@ -19,7 +19,7 @@ export {
   sanitizeUploadFilename,
   uploadFilenameFromObject,
   uploadMimeFromObject,
-} from "./shared/media";
+} from "./attachments/media";
 export {
   abortError,
   canFallbackAfterSocketError,

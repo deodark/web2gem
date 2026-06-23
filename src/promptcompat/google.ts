@@ -1,4 +1,4 @@
-import { imageFilenameFromObject } from "../shared/media";
+import { imageFilenameFromObject } from "../attachments/media";
 import { isRecord, type UnknownRecord } from "../shared/types";
 import { messageContentToPrompt, openAIToolDefs } from "../toolcall/content";
 import { googleAllowedFunctionNames, googleFunctionCallingConfig } from "../toolcall/policy-google";

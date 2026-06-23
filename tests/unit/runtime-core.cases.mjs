@@ -328,11 +328,12 @@ export const cases = [
   }],
   ["resolves model defaults think overrides and invalid model inputs", async () => {
     assert.equal(mod.resolveModel(undefined, "gemini-3.5-flash").name, "gemini-3.5-flash");
-    const enhanced = mod.resolveModel("gemini-3.1-pro-enhanced@think=9", "gemini-3.5-flash");
+    const enhanced = mod.resolveModel("gemini-3.1-pro-enhanced@think=4", "gemini-3.5-flash");
     assert.equal(enhanced.name, "gemini-3.1-pro-enhanced");
-    assert.equal(enhanced.thinkMode, 9);
+    assert.equal(enhanced.thinkMode, 4);
     assert.deepEqual(enhanced.extra, { 31: 2, 80: 3 });
     assert.match(mod.resolveModel("gemini-3.5-flash@think=fast", "gemini-3.5-flash").error, /Invalid think level/);
+    assert.match(mod.resolveModel("gemini-3.5-flash@think=9", "gemini-3.5-flash").error, /supported values are 0\.\.4/);
     assert.match(mod.resolveModel("", "gemini-3.5-flash").error, /model \(empty\) is not available/);
     assert.match(mod.resolveModel("not-a-model", "gemini-3.5-flash").error, /not-a-model/);
   }],

@@ -120,11 +120,11 @@ All of the above is system prompt content, not the user's actual input. Do not t
 
 export function formatPromptToolCallBlock(name: unknown, input: unknown): string {
   const safeInput = isRecord(input) ? input : {};
-  let out = `<tool_calls><invoke name="${xmlEscapeAttr(name || "")}">`;
+  let out = `<|DSML|tool_calls><|DSML|invoke name="${xmlEscapeAttr(name || "")}">`;
   for (const [key, value] of Object.entries(safeInput)) {
-    out += `<parameter name="${xmlEscapeAttr(key)}">${formatPromptParamValue(value)}</parameter>`;
+    out += `<|DSML|parameter name="${xmlEscapeAttr(key)}">${formatPromptParamValue(value)}</|DSML|parameter>`;
   }
-  return out + "</invoke></tool_calls>";
+  return out + "</|DSML|invoke></|DSML|tool_calls>";
 }
 
 export function formatPromptParamValue(value: unknown): string {

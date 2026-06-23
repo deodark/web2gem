@@ -1,4 +1,4 @@
-import { firstNonEmptyString } from "../shared/media";
+import { firstNonEmptyString } from "../attachments/media";
 import { isRecord } from "../shared/types";
 import type { UnknownRecord } from "../shared/types";
 import { extractToolMeta, toolFunctionDeclarations } from "./tool-meta";

@@ -52,6 +52,42 @@ export const cases = [
       "https://content-push.googleapis.com/upload",
     ]);
   }],
+  ["does not cache page-token fetch failures as successful empty token results", async () => {
+    mod.resetActiveGeminiCookieForTest();
+    mod.resetGeminiUploadCachesForTest();
+    let appCalls = 0;
+    await withFetch(async (url) => {
+      const href = String(url);
+      if (href === "https://gemini.example/app") {
+        appCalls += 1;
+        throw new Error("app unavailable");
+      }
+      throw new Error(`unexpected fetch ${href}`);
+    }, async () => {
+      assert.deepEqual(await mod.getPageTokens(baseUploadCfg()), {});
+      assert.deepEqual(await mod.getPageTokens(baseUploadCfg()), {});
+    });
+    assert.equal(appCalls, 2);
+  }],
+  ["logs default content-push token fallback when app page markers are missing", async () => {
+    mod.resetActiveGeminiCookieForTest();
+    mod.resetGeminiUploadCachesForTest();
+    const logs = [];
+    await withConsoleLog((line) => logs.push(String(line)), () => withFetch(async (url, init = {}) => {
+      const href = String(url);
+      if (href === "https://gemini.example/app") return new Response("no token markers", { status: 200 });
+      if (href === "https://content-push.googleapis.com/upload") {
+        assert.equal(init.headers["Push-ID"], "feeds/mcudyrk2a4khkz");
+        return new Response("/uploaded/default-token-ref", { status: 200 });
+      }
+      throw new Error(`unexpected fetch ${href}`);
+    }, async () => {
+      const ref = await mod.uploadTextFile(baseUploadCfg({ cookie: "__Secure-1PSID=psid", log_requests: true }), "hello", "message.txt");
+      assert.deepEqual(ref, { ref: "/uploaded/default-token-ref", name: "message.txt" });
+    }));
+    assert.equal(logs.some((line) => line.includes("app page token markers missing")), true);
+    assert.equal(logs.some((line) => line.includes("content-push upload using default page token") && line.includes("fields=push_id")), true);
+  }],
   ["degrades anonymous images instead of passing file refs to generation", async () => {
     mod.resetActiveGeminiCookieForTest();
     mod.resetGeminiUploadCachesForTest();

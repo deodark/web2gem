@@ -80,7 +80,9 @@ export function parseLegacyToolCalls(text: unknown): [string, OpenAIToolCall[]] 
           arguments: JSON.stringify(data.arguments != null ? data.arguments : data.args != null ? data.args : data.input != null ? data.input : {}),
         },
       });
-    } catch (_) { /* 跳过格式错误的块 */ }
+    } catch (_) {
+      cleanParts.push(m[0]);
+    }
   }
   cleanParts.push(source.slice(lastEnd));
   return [cleanParts.join("").trim(), toolCalls];

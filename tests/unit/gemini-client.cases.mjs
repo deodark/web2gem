@@ -51,12 +51,16 @@ export const cases = [
     const line = wrbLine(["short", "longer response"]);
     assert.deepEqual(mod.extractTextsFromLine(line), ["short", "longer response"]);
     assert.deepEqual(mod.extractTextsFromLine(` \t${line}`), ["short", "longer response"]);
+    assert.deepEqual(mod.extractTextsFromLine(JSON.stringify([["wrb.fr", null, JSON.stringify([null, null, null, null, [[null, ["tiny"]]]])]])), ["tiny"]);
     assert.deepEqual(mod.extractTextsFromLine("not json"), []);
     assert.deepEqual(mod.extractTextsFromLine(`${"x".repeat(220)} "wrb.fr"`), []);
     assert.deepEqual(mod.extractTextsFromLine(JSON.stringify([["wrb.fr", null, "{"]])), []);
+    assert.match(mod.wrbResponseShapeSummary(JSON.stringify([["wrb.fr", null, "{"]])), /topIssue=invalid_inner_json:1/);
 
     const raw = [wrbLine(["first"]), wrbLine(["first plus more"])].join("\n");
     assert.equal(mod.extractResponseText(raw), "first plus more");
+    assert.match(mod.wrbResponseShapeSummary(raw), /wrbLines=2/);
+    assert.match(mod.wrbResponseShapeSummary(raw), /textParts=2/);
   }],
   ["streams only new text deltas from repeated WRB lines", async () => {
     const extractor = mod.createStreamTextExtractor();
@@ -70,7 +74,7 @@ export const cases = [
       123,
       2,
       [{ ref: "file-ref", name: "doc.txt" }],
-      { 5: ["extra"], 79: 999 },
+      { 31: 2, 80: 3 },
     );
     const outer = JSON.parse(new URLSearchParams(payload).get("f.req"));
     const inner = JSON.parse(outer[1]);
@@ -79,8 +83,10 @@ export const cases = [
     assert.equal(inner[0][3][0][0][0], "file-ref");
     assert.equal(inner[0][3][0][1], "doc.txt");
     assert.equal(inner[3], null);
-    assert.deepEqual(inner[5], ["extra"]);
-    assert.equal(inner[79], 999);
+    assert.equal(inner[31], 2);
+    assert.equal(inner[79], 123);
+    assert.equal(inner[80], 3);
+    await assert.rejects(() => mod.buildPayload("prompt", 123, 2, null, { 79: 999 }), /Unsupported Gemini model extra payload field/);
   }],
   ["builds Gemini request URL and browser headers", async () => {
     const cfg = {

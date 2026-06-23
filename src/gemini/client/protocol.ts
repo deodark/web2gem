@@ -10,6 +10,33 @@ type PayloadFileRef = string | {
   filename?: unknown;
 };
 
+const GEMINI_PAYLOAD_INNER_LENGTH = 102;
+const GEMINI_PAYLOAD_FIELD = {
+  request: 0,
+  language: 1,
+  clientContext: 2,
+  defaultGenerationFlags: 6,
+  requestKind: 7,
+  responseMode: 10,
+  toolMode: 11,
+  thinkingMode: 17,
+  responseSeed: 18,
+  conversationMode: 27,
+  responseOptions: 30,
+  enhancedMode: 31,
+  mediaMode: 41,
+  safetyMode: 53,
+  requestId: 59,
+  toolContext: 61,
+  clientFeature: 68,
+  modelFamily: 79,
+  enhancedRouting: 80,
+} as const;
+const MODEL_EXTRA_PAYLOAD_FIELDS = new Set<number>([
+  GEMINI_PAYLOAD_FIELD.enhancedMode,
+  GEMINI_PAYLOAD_FIELD.enhancedRouting,
+]);
+
 export function buildPayload(
   prompt: string,
   modelId: number,
@@ -17,7 +44,19 @@ export function buildPayload(
   fileRefs: readonly PayloadFileRef[] | null,
   extra: Record<number, unknown> | null,
 ): string {
-  const inner = new Array(102);
+  const inner = createGeminiPayloadInner(prompt, modelId, thinkMode, fileRefs);
+  applyModelPayloadExtras(inner, extra);
+  const outer = [null, JSON.stringify(inner)];
+  return new URLSearchParams({ "f.req": JSON.stringify(outer) }).toString();
+}
+
+function createGeminiPayloadInner(
+  prompt: string,
+  modelId: number,
+  thinkMode: number,
+  fileRefs: readonly PayloadFileRef[] | null,
+): unknown[] {
+  const inner = new Array(GEMINI_PAYLOAD_INNER_LENGTH);
   if (fileRefs && fileRefs.length) {
     const files = fileRefs.map((item) => {
       if (item && typeof item === "object" && !Array.isArray(item)) {
@@ -25,34 +64,39 @@ export function buildPayload(
       }
       return [[item, 1], "file.txt"];
     });
-    inner[0] = [prompt, 0, null, files, null, null, 0];
+    inner[GEMINI_PAYLOAD_FIELD.request] = [prompt, 0, null, files, null, null, 0];
   } else {
-    inner[0] = [prompt, 0, null, null, null, null, 0];
+    inner[GEMINI_PAYLOAD_FIELD.request] = [prompt, 0, null, null, null, null, 0];
   }
-  inner[1] = ["en"];
-  inner[2] = ["", "", "", null, null, null, null, null, null, ""];
-  inner[6] = [0];
-  inner[7] = 1;
-  inner[10] = 1;
-  inner[11] = 0;
-  inner[17] = [[thinkMode]];
-  inner[18] = 0;
-  inner[27] = 1;
-  inner[30] = [4];
-  inner[41] = [2];
-  inner[53] = 0;
-  inner[59] = uuid();
-  inner[61] = [];
-  inner[68] = 1;
-  inner[79] = modelId;
+  inner[GEMINI_PAYLOAD_FIELD.language] = ["en"];
+  inner[GEMINI_PAYLOAD_FIELD.clientContext] = ["", "", "", null, null, null, null, null, null, ""];
+  inner[GEMINI_PAYLOAD_FIELD.defaultGenerationFlags] = [0];
+  inner[GEMINI_PAYLOAD_FIELD.requestKind] = 1;
+  inner[GEMINI_PAYLOAD_FIELD.responseMode] = 1;
+  inner[GEMINI_PAYLOAD_FIELD.toolMode] = 0;
+  inner[GEMINI_PAYLOAD_FIELD.thinkingMode] = [[thinkMode]];
+  inner[GEMINI_PAYLOAD_FIELD.responseSeed] = 0;
+  inner[GEMINI_PAYLOAD_FIELD.conversationMode] = 1;
+  inner[GEMINI_PAYLOAD_FIELD.responseOptions] = [4];
+  inner[GEMINI_PAYLOAD_FIELD.mediaMode] = [2];
+  inner[GEMINI_PAYLOAD_FIELD.safetyMode] = 0;
+  inner[GEMINI_PAYLOAD_FIELD.requestId] = uuid();
+  inner[GEMINI_PAYLOAD_FIELD.toolContext] = [];
+  inner[GEMINI_PAYLOAD_FIELD.clientFeature] = 1;
+  inner[GEMINI_PAYLOAD_FIELD.modelFamily] = modelId;
+  return inner;
+}
+
+function applyModelPayloadExtras(inner: unknown[], extra: Record<number, unknown> | null): void {
   if (extra) {
     for (const k of Object.keys(extra)) {
       const index = Number(k);
+      if (!Number.isInteger(index) || !MODEL_EXTRA_PAYLOAD_FIELDS.has(index)) {
+        throw new Error(`Unsupported Gemini model extra payload field: ${k}`);
+      }
       inner[index] = extra[index];
     }
   }
-  const outer = [null, JSON.stringify(inner)];
-  return new URLSearchParams({ "f.req": JSON.stringify(outer) }).toString();
 }
 
 export function getUrl(cfg: RuntimeConfig): string {

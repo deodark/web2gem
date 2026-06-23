@@ -432,7 +432,7 @@ export const cases = [
     assert.equal(mod.parseScalarValue("1e999"), "1e999");
     assert.equal(mod.parseScalarValue("{not json}"), "{not json}");
   }],
-  ["skips malformed legacy tool_call fences while preserving valid calls", async () => {
+  ["keeps malformed legacy tool_call fences while removing valid calls", async () => {
     const legacy = [
       "before",
       "```tool_call",
@@ -448,7 +448,9 @@ export const cases = [
     assert.match(clean, /before/);
     assert.match(clean, /middle/);
     assert.match(clean, /after/);
-    assert.doesNotMatch(clean, /tool_call/);
+    assert.match(clean, /```tool_call/);
+    assert.match(clean, /\{"arguments":\{"ignored":true\}\}/);
+    assert.doesNotMatch(clean, /\{"name":"Run"/);
     assert.equal(toolCalls.length, 1);
     assert.equal(toolCalls[0].function.name, "Run");
     assert.equal(JSON.parse(toolCalls[0].function.arguments).cmd, "ls");
@@ -932,11 +934,11 @@ export const cases = [
       },
       empty: undefined,
     });
-    assert.match(block, /<invoke name="Run&quot;Now">/);
-    assert.match(block, /<parameter name="text"><!\[CDATA\[a\]\]\]\]><!\[CDATA\[>b\]\]><\/parameter>/);
+    assert.match(block, /<\|DSML\|invoke name="Run&quot;Now">/);
+    assert.match(block, /<\|DSML\|parameter name="text"><!\[CDATA\[a\]\]\]\]><!\[CDATA\[>b\]\]><\/\|DSML\|parameter>/);
     assert.match(block, /<valid_name>true<\/valid_name>/);
     assert.match(block, /<field name="bad key"><item><!\[CDATA\[x\]\]><\/item><item>null<\/item><item>2<\/item><item>false<\/item><item><\/item><\/field>/);
-    assert.match(block, /<parameter name="empty"><\/parameter>/);
+    assert.match(block, /<\|DSML\|parameter name="empty"><\/\|DSML\|parameter>/);
     assert.equal(mod.isSafeXmlElementName("a.b-c_1"), true);
     assert.equal(mod.isSafeXmlElementName("1bad"), false);
     assert.equal(mod.formatPromptParamValue(Symbol("skip")), "");

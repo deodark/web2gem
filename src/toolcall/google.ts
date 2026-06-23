@@ -44,14 +44,14 @@ export function parseGoogleFunctionCalls(text: unknown, toolsRaw: unknown): [str
   let clean = String(text || "");
   for (const pat of LEGACY_FUNCTION_CALL_PATTERNS) {
     pat.lastIndex = 0;
-    for (const m of clean.matchAll(pat)) {
-      const parsedJson = tryParseJson((m[1] || "").trim());
-      if (!parsedJson.ok) continue;
+    clean = clean.replace(pat, (full: string, body: string) => {
+      const parsedJson = tryParseJson(String(body || "").trim());
+      if (!parsedJson.ok) return full;
       const call = googleFunctionCallFromRecord(parsedJson.value);
-      if (call) functionCalls.push(call);
-    }
-    pat.lastIndex = 0;
-    clean = clean.replace(pat, "").trim();
+      if (!call) return full;
+      functionCalls.push(call);
+      return "";
+    }).trim();
     pat.lastIndex = 0;
   }
   if (!functionCalls.length && clean.trim().startsWith("{")) {

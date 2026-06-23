@@ -112,7 +112,7 @@ export const cases = [
     assert.match(transcript, /# history\.txt/);
     assert.match(transcript, /=== 1\. SYSTEM ===/);
     assert.match(transcript, /\[reasoning_content\]\nneed file/);
-    assert.match(transcript, /<tool_calls><invoke name="Read">/);
+    assert.match(transcript, /<\|DSML\|tool_calls><\|DSML\|invoke name="Read">/);
     assert.match(transcript, /\[name=Read tool_call_id=call_1\]/);
     assert.match(transcript, /\{"ok":true\}/);
   }],
@@ -135,7 +135,7 @@ export const cases = [
     const transcript = mod.buildGoogleHistoryTranscript(req, "google.txt");
     assert.match(transcript, /be concise/);
     assert.match(transcript, /\[image input\]/);
-    assert.match(transcript, /<tool_calls><invoke name="Lookup">/);
+    assert.match(transcript, /<\|DSML\|tool_calls><\|DSML\|invoke name="Lookup">/);
     assert.match(transcript, /\[name=Lookup\]\n\{"ok":true\}/);
     assert.match(transcript, /\[file input gemini:\/\/file\/1\]\nlatest/);
     assert.equal(mod.latestGoogleUserInputText(req), "[file input gemini://file/1]\nlatest");
@@ -198,8 +198,8 @@ export const cases = [
     assert.match(prompt, /look up docs/);
     assert.match(prompt, /\[image input\]/);
     assert.match(prompt, /\[Assistant\]: I will search/);
-    assert.match(prompt, /<tool_calls><invoke name="Search">/);
-    assert.match(prompt, /<parameter name="query"><!\[CDATA\[docs\]\]><\/parameter>/);
+    assert.match(prompt, /<\|DSML\|tool_calls><\|DSML\|invoke name="Search">/);
+    assert.match(prompt, /<\|DSML\|parameter name="query"><!\[CDATA\[docs\]\]><\/\|DSML\|parameter>/);
     assert.match(prompt, /tool output follows/);
     assert.match(prompt, /\[Tool result for Search\]: \{"ok":true\}/);
     assert.equal(promptResult.latestInputText, "tool output follows");
@@ -485,8 +485,8 @@ export const cases = [
     ], null, "auto", null, "", 1000000);
     assert.match(result[0], /\[Assistant\]: \[reasoning_content\]\nkept/);
     assert.doesNotMatch(result[0], /should not be duplicated/);
-    assert.match(result[0], /<tool_calls><invoke name="Run"><\/invoke><\/tool_calls>/);
-    assert.match(result[0], /<parameter name="query"><!\[CDATA\[docs\]\]><\/parameter>/);
+    assert.match(result[0], /<\|DSML\|tool_calls><\|DSML\|invoke name="Run"><\/\|DSML\|invoke><\/\|DSML\|tool_calls>/);
+    assert.match(result[0], /<\|DSML\|parameter name="query"><!\[CDATA\[docs\]\]><\/\|DSML\|parameter>/);
     assert.match(result[0], /\[Tool result for id=call_1\]: null/);
     assert.equal(result.latestInputText, "latest user text");
   }],

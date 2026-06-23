@@ -16,6 +16,7 @@
 - `src/gemini/transport/socket.ts` is the public socket transport facade. If the socket implementation is decomposed, keep public exports compatible from this module and move internals into owner modules under `src/gemini/transport/`.
 - `src/gemini/completion-provider.ts` is the Gemini adapter for `src/completion/ports.ts`. It may import completion port types; other Gemini implementation modules should not depend on completion business modules.
 - `src/shared/` must stay leaf-level and provider-neutral.
+- `src/shared/media.ts` is a compatibility re-export only. Implementation modules must import media and attachment helpers from `src/attachments/**` directly.
 - `scripts/docker-server.mjs` adapts Node HTTP requests to the Worker `fetch` entrypoint. Do not duplicate route, auth, completion, or provider logic in the Docker server path.
 
 ## Provider Ports and Stream Events
@@ -98,6 +99,7 @@ Use this contract when changing OpenAI/Google file or image input handling, requ
 ### 3. Contracts
 
 - `src/attachments/**` is provider-neutral and may depend on `src/shared/**`, but must not import `src/gemini/**`, HTTP adapters, or completion modules.
+- Implementation modules must import attachment media helpers from `src/attachments/media`, not from the legacy `src/shared/media.ts` compatibility shim.
 - `src/completion/**` must call provider ports for upload and must not import Gemini upload modules.
 - `src/gemini/uploads/**` owns Gemini Web upload protocol details. Preferred content-push upload is multipart and must not include Gemini cookie or SAPISID authorization headers.
 - Request-local candidate dedupe is scoped to one request and keyed by MIME/content type, filename, and bytes.
@@ -118,6 +120,7 @@ Use this contract when changing OpenAI/Google file or image input handling, requ
 - Good: prompt conversion emits markers, attachment planning owns candidates/refs, completion calls `resolveAttachments(plan)`, and Gemini adapter executes the plan.
 - Base: `src/shared/media.ts` may remain a compatibility re-export, but parsing logic belongs under `src/attachments/`.
 - Bad: `src/completion/context.ts` imports `src/gemini/uploads`.
+- Bad: implementation modules import `src/shared/media.ts` instead of the `src/attachments/media` owner.
 - Bad: adding a second resolver path for images or files outside `AttachmentPlan`.
 - Bad: sending `Cookie` or `Authorization` to `https://content-push.googleapis.com/upload` on the preferred multipart path.
 
@@ -452,6 +455,8 @@ Use this contract when changing non-streaming tool-call parsing, streamed tool-c
 - Ordinary prose such as `a < b and parameterless text` must not enter full DSML/XML parsing just because it contains `<` and a tool-like substring.
 - Streamed tool-call sieve may hold true partial prefixes across chunks, for example `<|DS`, but must release the buffer once later text proves the prefix is not a valid partial tool tag.
 - DSML parser compatibility remains permissive after the probe admits a candidate: accepted legacy XML, confusable delimiters, DSML aliases, protected Markdown handling, and schema normalization must continue in the parser/formatter modules.
+- Prompt/history formatters must emit the DSML-prefixed form (`<|DSML|tool_calls>`, `<|DSML|invoke>`, `<|DSML|parameter>`) rather than generating legacy `<tool_calls>` tags. Parsers may continue accepting legacy tags as input compatibility.
+- Malformed legacy fenced tool-call blocks must remain visible as plain text instead of being stripped from the model output without producing a tool call.
 
 ### 4. Validation & Error Matrix
 
@@ -459,12 +464,16 @@ Use this contract when changing non-streaming tool-call parsing, streamed tool-c
 - Split partial prefix `<|DS` followed by `ML|tool_calls...` -> held and parsed as a tool candidate.
 - Split partial prefix `<|DS` followed by plain prose -> released as text.
 - Valid DSML or legacy fenced tool calls -> parsed and formatted as OpenAI/Google tool calls.
+- Malformed legacy fenced `tool_call` / `function_call` blocks -> no tool call, original block remains in clean text.
 
 ### 5. Good/Base/Bad Cases
 
 - Good: add a new accepted tag spelling in `syntax-probe.ts`, then test both non-streaming parse and streamed sieve behavior.
 - Base: `parseToolCalls` asks the probe before entering `parseDSMLToolCallsDetailed`.
+- Base: legacy `<tool_calls>` is accepted by parsers and stream sieve tests, but generated history/prompt text uses DSML tags.
 - Bad: broad checks such as `text.includes("<") && /parameter/.test(text)` because long ordinary prose can burn several milliseconds before returning no tool calls.
+- Bad: generated prompt/history text uses legacy `<tool_calls>` tags for new assistant tool-call blocks.
+- Bad: malformed legacy fenced blocks are removed from clean text when no valid tool call was produced.
 - Bad: `toolstream` retaining everything after any `<` until a large maximum-candidate threshold.
 
 ### 6. Tests Required

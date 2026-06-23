@@ -301,7 +301,10 @@ export const cases = [
   }],
   ["keeps malformed Google function-call text as plain output", async () => {
     const [clean, calls] = mod.parseGoogleFunctionCalls("before\n```function_call\n{\"name\":\n```\nafter", null);
-    assert.equal(clean, "before\n\nafter");
+    assert.match(clean, /before/);
+    assert.match(clean, /```function_call/);
+    assert.match(clean, /\{"name":/);
+    assert.match(clean, /after/);
     assert.deepEqual(calls, []);
   }],
   ["validates Google tool-choice mode and allowed-name aliases", async () => {
@@ -567,7 +570,7 @@ export const cases = [
     assert.match(prompts[0], /\[System instruction\]: be concise/);
     assert.match(prompts[0], /inspect image/);
     assert.match(prompts[0], /\[image input\]/);
-    assert.match(prompts[0], /\[Assistant\]: \n<tool_calls><invoke name="Lookup">/);
+    assert.match(prompts[0], /\[Assistant\]: \n<\|DSML\|tool_calls><\|DSML\|invoke name="Lookup">/);
     assert.match(prompts[0], /\[Tool result for Lookup\]: \{"ok":true\}/);
   }],
   ["maps invalid Gemini cookie errors to Google auth responses", async () => {

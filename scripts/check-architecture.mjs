@@ -135,6 +135,11 @@ const rules = [
     files: "src/{completion,promptcompat,toolstream,http}/**/*.ts",
     disallowedExact: ["../toolcall", "../toolcall/index", "../toolcall/index.ts", "../../toolcall", "../../toolcall/index", "../../toolcall/index.ts"],
   },
+  {
+    label: "implementation modules must import attachment media owner modules instead of the shared media compatibility shim",
+    files: "src/{completion,promptcompat,toolcall,toolstream,http,gemini}/**/*.ts",
+    disallowed: ["../shared/media", "../../shared/media"],
+  },
 ];
 
 const importPattern = /(?:import|export)\s+(?:[^"']*?\s+from\s+)?["']([^"']+)["']/g;

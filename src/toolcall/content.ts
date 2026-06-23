@@ -1,4 +1,4 @@
-import { firstNonEmptyString, imageFilenameFromObject, normalizeUploadFileInput, parseImageUrl, uploadFilenameFromObject, uploadMimeFromObject } from "../shared/media";
+import { firstNonEmptyString, imageFilenameFromObject, normalizeUploadFileInput, parseImageUrl, uploadFilenameFromObject, uploadMimeFromObject } from "../attachments/media";
 import { isRecord, type UnknownRecord } from "../shared/types";
 import { toolDefsFromTools } from "./tool-meta";
 import { isToolBundle } from "./tool-bundle";

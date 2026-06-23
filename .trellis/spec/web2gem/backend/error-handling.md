@@ -14,11 +14,15 @@ Do not silently change request semantics after a failure. A request with an expl
 
 Gemini content-push upload must prefer multipart without `Cookie` or SAPISID-derived `Authorization`. Resumable upload is an internal auth-coupled fallback, not a general retry path: use it only when multipart returns an explicit content-push protocol/auth-style HTTP status (`400`, `401`, `403`, `404`, `405`, `415`, or `501`). Do not use resumable fallback for invalid multipart file references, local validation errors, aborts, network-like failures, or exceptions without a trusted HTTP status. Request-local attachment failures after this policy degrade with prompt notes; required `message.txt` / `tools.txt` context-file failures still fail the request.
 
+Gemini content-push page tokens may use documented default `Push-ID` / `pctx` values only as an explicit internal fallback. `/app` fetch failures must be logged with safe error summaries and must not be cached as successful empty token results. `/app` responses that are reachable but no longer contain expected token markers may cache the empty marker result only briefly and must log that defaults may be used. Preferred multipart upload still must not send Gemini cookie or SAPISID authorization headers when default page tokens are used.
+
 Request-local upload materialization follows `ds2api`: inline base64 and data URL payloads are supported, but remote `http://` / `https://` URLs are not fetched by the worker. Explicit file inputs that contain only a remote URL and no existing file reference are invalid request-local file inputs and must degrade with a prompt note instead of starting any network read.
 
 When `GEMINI_COOKIE` is configured and Gemini generation returns an authentication-style upstream status (`401` or `403`), classify it immediately as `invalid_gemini_cookie` before reading or parsing the response body, log safe metadata, and return HTTP 401 to OpenAI-compatible and Google-compatible callers. Do not retry the same request anonymously. Request-local image and generic file uploads may still degrade as described above; text-file context upload must fail instead of falling back.
 
 When `GEMINI_COOKIE` is configured, generation requests must also verify the Gemini page auth token (`at`) before calling `StreamGenerate`. If `/app` does not yield `at`, return `invalid_gemini_cookie` immediately instead of sending the generation request without `at`, because that silently turns the request into anonymous behavior.
+
+When Gemini WRB response parsing yields no text, logs under `LOG_REQUESTS` should include safe response-shape diagnostics such as WRB line count, parsed-envelope count, parsed-inner count, text-part count, and a reason class. Do not log raw WRB payload snippets or response text as diagnostics.
 
 Streaming paths should keep partial-output behavior intact:
 

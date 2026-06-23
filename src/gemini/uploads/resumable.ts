@@ -4,7 +4,7 @@ import { makeSapisidHash } from "../../shared/runtime";
 import { configWithFreshGeminiCookie, rotateGeminiCookieForRetry } from "../cookies";
 import { httpFetch } from "../transport";
 import { validateContentPushFileRef } from "./errors";
-import { GEMINI_UPLOAD_USER_AGENT, getPageTokensForConfig } from "./tokens";
+import { contentPushUploadTokens, GEMINI_UPLOAD_USER_AGENT, getPageTokensForConfig, logContentPushTokenFallback } from "./tokens";
 import type { UploadBytesInput } from "./multipart";
 
 const RESUMABLE_UPLOAD_ENDPOINT = "https://content-push.googleapis.com/upload/";
@@ -15,15 +15,15 @@ export async function uploadResumableFile(cfg: RuntimeConfig, input: UploadBytes
 }
 
 async function uploadResumableFileWithConfig(cfg: RuntimeConfig, input: UploadBytesInput, retriedAfterRotate: boolean): Promise<string> {
-  const tokens = await getPageTokensForConfig(cfg);
-  const pushId = tokens.push_id || "feeds/mcudyrk2a4khkz";
-  const pctx = tokens.pctx || "CgcSBWjK7pYx";
+  const pageTokens = await getPageTokensForConfig(cfg);
+  const tokens = contentPushUploadTokens(pageTokens);
+  logContentPushTokenFallback(cfg, "resumable", tokens);
   const contentType = chooseUploadMime(input.mime);
 
   const startHeaders: Record<string, string> = {
-    "Push-ID": pushId,
+    "Push-ID": tokens.pushId,
     "X-Tenant-Id": "bard-storage",
-    "X-Client-Pctx": pctx,
+    "X-Client-Pctx": tokens.pctx,
     "X-Goog-Upload-Header-Content-Length": String(input.bytes.length),
     "X-Goog-Upload-Header-Content-Type": contentType,
     "X-Goog-Upload-Protocol": "resumable",

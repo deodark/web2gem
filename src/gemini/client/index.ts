@@ -13,7 +13,7 @@ import {
   unverifiedGeminiCookieError,
 } from "./errors";
 import { buildHeaders, buildPayload, getUrl } from "./protocol";
-import { createStreamTextExtractor, extractResponseText } from "./parser";
+import { createStreamTextExtractor, extractResponseText, wrbResponseShapeSummary } from "./parser";
 import { configWithCachedGeminiBuildLabel, refreshGeminiBuildLabelForRetry, waitBeforeRetry } from "./retry";
 import { configWithFreshGeminiCookie, rotateGeminiCookieForRetryWithReason } from "../cookies";
 import type { RuntimeConfig } from "../../config";
@@ -31,7 +31,7 @@ type GeminiStreamOptions = {
   signal?: AbortSignal;
 };
 
-export { cleanText, extractResponseText, extractTextsFromLine } from "./parser";
+export { cleanText, extractResponseText, extractTextsFromLine, wrbResponseShapeSummary } from "./parser";
 export { buildHeaders, buildPayload, getUrl } from "./protocol";
 export { getFreshGeminiBuildLabel } from "./retry";
 
@@ -86,7 +86,8 @@ export async function generate(
       const raw = await resp.text();
       const text = extractResponseText(raw);
       if (!resp.ok || !text) {
-        log(cfg, `upstream status=${resp.status} rawLen=${raw.length} parsedLen=${text.length}`);
+        const shape = cfg.log_requests && !text ? ` ${wrbResponseShapeSummary(raw)}` : "";
+        log(cfg, `upstream status=${resp.status} rawLen=${raw.length} parsedLen=${text.length}${shape}`);
       }
       if (!text) {
         const dataAnalysisErr = dataAnalysisEmptyResponseError(raw, fileRefs);
@@ -152,7 +153,8 @@ export async function* generateStream(
           yield text;
         }
         if (!text) {
-          log(cfg, `stream upstream produced no text without body (status=${resp.status}) rawLen=${raw.length}`);
+          const shape = cfg.log_requests ? ` ${wrbResponseShapeSummary(raw)}` : "";
+          log(cfg, `stream upstream produced no text without body (status=${resp.status}) rawLen=${raw.length}${shape}`);
           const dataAnalysisErr = dataAnalysisEmptyResponseError(raw, fileRefs);
           if (dataAnalysisErr) throw dataAnalysisErr;
           const largePromptErr = largePromptEmptyResponseError(prompt, resp.status, raw.length, largePromptEmptyResponseThreshold(cfg));
@@ -229,7 +231,8 @@ export async function* generateStream(
         }
       }
       if (!yielded) {
-        log(cfg, `stream upstream produced no text (status=${resp.status}) rawLen=${rawLength}`);
+        const shape = cfg.log_requests ? ` ${wrbResponseShapeSummary(rawSnippet)}` : "";
+        log(cfg, `stream upstream produced no text (status=${resp.status}) rawLen=${rawLength}${shape}`);
         const dataAnalysisErr = dataAnalysisEmptyResponseError(rawSnippet, fileRefs);
         if (dataAnalysisErr) throw dataAnalysisErr;
         const largePromptErr = largePromptEmptyResponseError(prompt, resp.status, null, largePromptEmptyResponseThreshold(cfg));
