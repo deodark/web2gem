@@ -237,6 +237,7 @@ export const cases = [
       API_KEYS: "[]",
       CURRENT_INPUT_FILE_ENABLED: "true",
       CURRENT_INPUT_FILE_MIN_BYTES: "10",
+      GENERIC_FILE_UPLOAD_MAX_BYTES: "0",
       GEMINI_COOKIE: "",
       LOG_REQUESTS: "false",
     }, {});
@@ -263,6 +264,7 @@ export const cases = [
       API_KEYS: "[]",
       CURRENT_INPUT_FILE_ENABLED: "true",
       CURRENT_INPUT_FILE_MIN_BYTES: "10",
+      GENERIC_FILE_UPLOAD_MAX_BYTES: "0",
       GEMINI_COOKIE: "",
       LOG_REQUESTS: "false",
     }, {});
@@ -270,6 +272,32 @@ export const cases = [
     const body = await resp.json();
     assert.equal(body.error.code, "large_context_inline_unsupported");
     assert.match(body.error.message, /at least 11 UTF-8 bytes > 10/);
+  }],
+  ["parses image request bodies that exceed the inline prompt threshold", async () => {
+    const body = JSON.stringify({
+      model: "gemini-3.5-flash",
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: "describe this" },
+          { type: "image_url", image_url: { url: `data:image/png;base64,${"A".repeat(80)}` } },
+        ],
+      }],
+    });
+    assert.equal(body.length > 40, true);
+    const result = await mod.readRouteJsonPost(new Request("https://worker.example/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Content-Length": String(body.length) },
+      body,
+    }), {
+      current_input_file_enabled: true,
+      current_input_file_min_bytes: 40,
+      generic_file_upload_max_bytes: 1024,
+      cookie: "",
+      log_requests: false,
+    }, "/v1/chat/completions");
+    assert.equal(result.error, undefined);
+    assert.equal(result.value.messages[0].content[0].text, "describe this");
   }],
   ["rejects oversized parsed chat prompt without attachments", async () => {
     const resp = await mod.default.fetch(new Request("https://worker.example/v1/chat/completions", {
@@ -289,7 +317,7 @@ export const cases = [
     assert.equal(resp.status, 413);
     const body = await resp.json();
     assert.equal(body.error.code, "large_context_inline_unsupported");
-    assert.match(body.error.message, /at least 11 UTF-8 bytes > 10/);
+    assert.match(body.error.message, /at least 40 UTF-8 bytes > 10/);
   }],
   ["formats OpenAI and Google response helper payloads", async () => {
     const chatChunk = mod.openAIChatChunk("chatcmpl_test", "gemini-3.5-flash", { content: "hi" }, null);

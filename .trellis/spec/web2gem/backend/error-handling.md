@@ -91,7 +91,7 @@ Use this contract when a request may be too large to send inline to Gemini Web a
 
 ### 2. Signatures
 
-- HTTP boundary: `src/index.ts` may reject POST routes before `readJsonRequest` when `Content-Length` exceeds `contextFileThreshold(cfg)`.
+- HTTP boundary: JSON route helpers may reject POST routes before `readJsonRequest` when `Content-Length` exceeds the attachment-aware body read limit for inline-context-unavailable requests.
 - JSON boundary: `readJsonRequest(request, { maxBodyBytes, oversizedError })` may stop reading `request.body` as soon as streamed bytes exceed the configured limit.
 - Completion boundary: `preparePromptWithAttachments` may return `ContextFileFailure` with `ErrorWithMetadata`.
 - Error code: `large_context_inline_unsupported`.
@@ -101,11 +101,13 @@ Use this contract when a request may be too large to send inline to Gemini Web a
 - Environment keys:
   - `CURRENT_INPUT_FILE_ENABLED=true` keeps context-file attachment support enabled.
   - `CURRENT_INPUT_FILE_MIN_BYTES` is the oversized threshold.
+  - `GENERIC_FILE_UPLOAD_MAX_BYTES` contributes to the JSON body read limit because base64 request-local attachments increase `Content-Length` without increasing inline prompt bytes.
   - `GEMINI_COOKIE` must be configured for text attachment upload.
   - `LOG_REQUESTS` is opt-in and should not be required for normal operation.
-- If `Content-Length` is present and exceeds the threshold while attachments are unavailable, return 413 before parsing JSON. The client-facing message should include `<contentLength> bytes > <threshold>`.
-- If `Content-Length` is absent or inaccurate and streamed body bytes exceed the threshold while attachments are unavailable, `readJsonRequest` returns 413 before decoding/parsing the full body. The client-facing message should include `at least <threshold + 1> UTF-8 bytes > <threshold>`.
-- If a parsed prompt exceeds the threshold while attachments are unavailable, return 413 before provider generation. The client-facing message should include `<promptBytes> UTF-8 bytes > <threshold>`; bounded checks may say `at least <bytes>`.
+- `Content-Length` is not an inline prompt size. It includes base64 image/file bytes that prompt conversion later replaces with markers and attachment candidates.
+- If `Content-Length` is present and exceeds the attachment-aware body read limit while context-file attachments are unavailable, return 413 before parsing JSON. The client-facing message should include `<contentLength> bytes > <bodyLimit>` and the inline prompt threshold.
+- If `Content-Length` is absent or inaccurate and streamed body bytes exceed the attachment-aware body read limit while context-file attachments are unavailable, `readJsonRequest` returns 413 before decoding/parsing the full body. The client-facing message should include `at least <bodyLimit + 1> UTF-8 bytes > <bodyLimit>` and the inline prompt threshold.
+- If a parsed prompt exceeds the threshold after prompt conversion has removed request-local attachment payloads from the live prompt, return 413 before provider generation when context-file attachments are unavailable. The client-facing message should include `<promptBytes> UTF-8 bytes > <threshold>`; bounded checks may say `at least <bytes>`.
 - If conversion-time checks show the base prompt or estimated final inline prompt exceeds the threshold while text attachments are available, choose the context-file path before constructing the full hidden-tools/structured inline prompt string.
 - In the context-file path, upload `CURRENT_TOOLS_FILE_NAME` (default `tools.txt`) as the home for tool-use context. It must contain visible tool descriptions/schemas when present, DSML tool-call format instructions, the tool-choice policy text when present, and `GEMINI_NATIVE_HIDDEN_TOOLS_PROMPT`. The live prompt should only reference the attached tools file and must not duplicate DSML call-format instructions or the hidden native tool payload text.
 - If no client-visible tools are declared, still attach `tools.txt` for the hidden native tool prompt when the request uses context files. Token accounting for context-file prompts must include history text, `tools.txt`, and the short live prompt exactly once.
@@ -114,8 +116,8 @@ Use this contract when a request may be too large to send inline to Gemini Web a
 
 ### 4. Validation & Error Matrix
 
-- `Content-Length > threshold` and no `GEMINI_COOKIE` -> 413 `large_context_inline_unsupported`.
-- Streamed request body exceeds threshold and no `GEMINI_COOKIE` -> 413 `large_context_inline_unsupported`.
+- `Content-Length > attachment-aware body read limit` and no `GEMINI_COOKIE` -> 413 `large_context_inline_unsupported`.
+- Streamed request body exceeds attachment-aware body read limit and no `GEMINI_COOKIE` -> 413 `large_context_inline_unsupported`.
 - Prompt bytes exceed threshold and no `GEMINI_COOKIE` -> 413 `large_context_inline_unsupported`.
 - Prompt bytes exceed threshold and `CURRENT_INPUT_FILE_ENABLED=false` -> 413 `large_context_inline_unsupported`.
 - Prompt bytes exceed threshold and text upload fails -> 502 `large_context_file_upload_failed`.
@@ -125,8 +127,8 @@ Use this contract when a request may be too large to send inline to Gemini Web a
 
 ### 5. Good/Base/Bad Cases
 
-- Good: reject an oversized no-cookie request before `readJsonRequest` when `Content-Length` proves it is too large.
-- Good: pass `maxBodyBytes: contextFileThreshold(cfg)` into `readJsonRequest` when inline text attachments are unavailable, so chunked oversized invalid JSON stops at the threshold.
+- Good: reject an oversized no-cookie request before `readJsonRequest` when `Content-Length` proves it exceeds the attachment-aware body read limit.
+- Good: pass the attachment-aware body read limit into `readJsonRequest` when inline text attachments are unavailable, so oversized invalid JSON is still bounded while valid image/file requests can reach prompt conversion.
 - Good: use conversion-time prompt byte checks plus a bounded final-inline estimate to select context-file upload before concatenating a large hidden-tools/structured inline prompt.
 - Good: put tool schemas, DSML call instructions, tool-choice policy, and hidden native tool instructions into `tools.txt` for context-file requests.
 - Base: use context-file upload for large authenticated requests and send only the short live prompt inline.
@@ -135,8 +137,9 @@ Use this contract when a request may be too large to send inline to Gemini Web a
 
 ### 6. Tests Required
 
-- Unit test that oversized invalid JSON with `Content-Length` returns 413, proving the HTTP guard runs before parsing.
-- Unit test that oversized invalid JSON without `Content-Length` returns 413 from bounded stream reading, proving the body reader stops before JSON parsing.
+- Unit test that oversized invalid JSON with `Content-Length` returns 413 when the body read limit is exceeded, proving the HTTP guard runs before parsing.
+- Unit test that oversized invalid JSON without `Content-Length` returns 413 from bounded stream reading when the body read limit is exceeded, proving the body reader stops before JSON parsing.
+- Unit test that a request with inline image data and small text prompt can exceed `CURRENT_INPUT_FILE_MIN_BYTES` as `Content-Length` and still reach JSON parsing / prompt conversion.
 - Unit test that parsed oversized prompts without attachment support return `large_context_inline_unsupported`.
 - Unit test that context-file requests with visible tools put `Available tool descriptions`, `<|DSML|tool_calls>`, tool-choice policy, and hidden native tool text in `tools.txt`, while the provider live prompt only references the file.
 - Unit test that context-file requests without visible tools still upload `tools.txt` containing the hidden native tool prompt.

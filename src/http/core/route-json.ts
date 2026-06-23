@@ -9,9 +9,12 @@ const LARGE_CONTEXT_INLINE_UNSUPPORTED = "large_context_inline_unsupported";
 type RouteJsonConfig = {
   current_input_file_enabled?: unknown;
   current_input_file_min_bytes?: unknown;
+  generic_file_upload_max_bytes?: unknown;
   cookie?: unknown;
   log_requests?: unknown;
 };
+
+const JSON_ATTACHMENT_OVERHEAD_BYTES = 1024 * 1024;
 
 export type RouteJsonPostResult =
   | { value: UnknownRecord; error?: undefined; status?: undefined; code?: undefined }
@@ -41,15 +44,17 @@ function oversizedInlineBodyRejection(request: Request, cfg: RouteJsonConfig, pa
   const contentLength = requestContentLength(request);
   if (contentLength == null) return null;
   const threshold = contextFileThreshold(cfg);
-  if (contentLength <= threshold) return null;
+  const bodyLimit = inlineContextBodyReadLimit(cfg, threshold);
+  if (contentLength <= bodyLimit) return null;
   logStage(cfg, "request_json_reject", {
     path,
     status: 413,
     code: LARGE_CONTEXT_INLINE_UNSUPPORTED,
     bodyBytes: contentLength,
     threshold,
+    bodyLimit,
   });
-  const message = `request body is too large to parse without Gemini text attachments (${contentLength} bytes > ${threshold}) and ${unavailable}; configure GEMINI_COOKIE with CURRENT_INPUT_FILE_ENABLED=true so this worker can use text attachments, or reduce the request size`;
+  const message = `request body is too large to parse without Gemini text attachments (${contentLength} bytes > ${bodyLimit}; inline prompt threshold ${threshold}) and ${unavailable}; configure GEMINI_COOKIE with CURRENT_INPUT_FILE_ENABLED=true so this worker can use text attachments, or reduce the request size`;
   return {
     status: 413,
     code: LARGE_CONTEXT_INLINE_UNSUPPORTED,
@@ -79,14 +84,22 @@ function oversizedInlineBodyReadOptions(cfg: RouteJsonConfig): ReadJsonRequestOp
   const unavailable = inlineContextUnavailableReason(cfg);
   if (!unavailable) return undefined;
   const threshold = contextFileThreshold(cfg);
+  const bodyLimit = inlineContextBodyReadLimit(cfg, threshold);
   return {
-    maxBodyBytes: threshold,
+    maxBodyBytes: bodyLimit,
     oversizedError: {
       status: 413,
       code: LARGE_CONTEXT_INLINE_UNSUPPORTED,
-      message: `request body is too large to parse without Gemini text attachments (at least ${threshold + 1} UTF-8 bytes > ${threshold}) and ${unavailable}; configure GEMINI_COOKIE with CURRENT_INPUT_FILE_ENABLED=true so this worker can use text attachments, or reduce the request size`,
+      message: `request body is too large to parse without Gemini text attachments (at least ${bodyLimit + 1} UTF-8 bytes > ${bodyLimit}; inline prompt threshold ${threshold}) and ${unavailable}; configure GEMINI_COOKIE with CURRENT_INPUT_FILE_ENABLED=true so this worker can use text attachments, or reduce the request size`,
     },
   };
+}
+
+export function inlineContextBodyReadLimit(cfg: RouteJsonConfig, threshold: number = contextFileThreshold(cfg)): number {
+  const attachmentMaxBytes = Number(cfg.generic_file_upload_max_bytes);
+  if (!Number.isFinite(attachmentMaxBytes) || attachmentMaxBytes <= 0) return threshold;
+  const encodedAttachmentBytes = Math.ceil(Math.floor(attachmentMaxBytes) * 4 / 3);
+  return threshold + encodedAttachmentBytes + JSON_ATTACHMENT_OVERHEAD_BYTES;
 }
 
 function inlineContextUnavailableReason(cfg: RouteJsonConfig): string {

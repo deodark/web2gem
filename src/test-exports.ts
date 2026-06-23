@@ -54,6 +54,7 @@ export {
   trimContinuationOverlap,
 } from "./shared/tokens";
 export { readJsonRequest } from "./http/core/json";
+export { inlineContextBodyReadLimit, readRouteJsonPost } from "./http/core/route-json";
 export { sseResponse } from "./http/core/sse";
 export { streamErrorText, streamInterruptedWarningText, streamWarningObject, writeStreamWarningEvent } from "./http/core/stream-errors";
 export { httpFetch } from "./gemini/transport/http";

@@ -509,6 +509,7 @@ export const cases = [
     }), {
       CURRENT_INPUT_FILE_ENABLED: "false",
       CURRENT_INPUT_FILE_MIN_BYTES: "1",
+      GENERIC_FILE_UPLOAD_MAX_BYTES: "0",
     }, {});
     assert.equal(resp.status, 413);
     const body = await resp.json();
