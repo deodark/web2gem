@@ -86,20 +86,16 @@ export function markdownProtectedTailStart(text: unknown): number {
 
 export function openMarkdownFenceStart(text: unknown): number {
   const source = String(text || "");
-  let fence: MarkdownFenceState | null = null;
-  let lineStart = 0;
-  const lines = source.split(/(\r?\n)/);
-  for (let i = 0; i < lines.length; i += 2) {
-    const line = lines[i] || "";
+  const state: { fence: MarkdownFenceState | null } = { fence: null };
+  forEachMarkdownLine(source, (line, lineStart) => {
     const parsed = parseMarkdownFenceLine(line);
     if (parsed) {
       const cur = { ch: parsed.ch, len: parsed.len, index: lineStart + parsed.index };
-      if (!fence) fence = cur;
-      else if (parsed.canClose && cur.ch === fence.ch && cur.len >= fence.len) fence = null;
+      if (!state.fence) state.fence = cur;
+      else if (parsed.canClose && cur.ch === state.fence.ch && cur.len >= state.fence.len) state.fence = null;
     }
-    lineStart += line.length + ((lines[i + 1] || "").length);
-  }
-  return fence ? fence.index : -1;
+  });
+  return state.fence ? state.fence.index : -1;
 }
 
 export function parseMarkdownFenceLine(line: unknown): MarkdownFenceLine | null {
@@ -169,27 +165,22 @@ export function isInsideMarkdownCodeSpan(text: unknown, index: number): boolean 
 export function markdownProtectedRanges(text: unknown): MarkdownRange[] {
   const source = String(text || "");
   const ranges: MarkdownRange[] = [];
-  const lines = source.split(/(\r?\n)/);
-  let lineStart = 0;
-  let fence: MarkdownFenceState | null = null;
-  for (let i = 0; i < lines.length; i += 2) {
-    const line = lines[i] || "";
-    const sep = lines[i + 1] || "";
+  const state: { fence: MarkdownFenceState | null } = { fence: null };
+  forEachMarkdownLine(source, (line, lineStart, separatorLength) => {
     const parsed = parseMarkdownFenceLine(line);
-    if (fence) {
-      if (parsed && parsed.canClose && parsed.ch === fence.ch && parsed.len >= fence.len) {
-        ranges.push({ start: fence.index, end: lineStart + line.length + sep.length });
-        fence = null;
+    if (state.fence) {
+      if (parsed && parsed.canClose && parsed.ch === state.fence.ch && parsed.len >= state.fence.len) {
+        ranges.push({ start: state.fence.index, end: lineStart + line.length + separatorLength });
+        state.fence = null;
       }
     } else if (parsed) {
       const cur = { ch: parsed.ch, len: parsed.len, index: lineStart + parsed.index };
-      fence = cur;
+      state.fence = cur;
     } else {
       appendInlineCodeSpanRanges(line, lineStart, ranges);
     }
-    lineStart += line.length + sep.length;
-  }
-  if (fence) ranges.push({ start: fence.index, end: source.length });
+  });
+  if (state.fence) ranges.push({ start: state.fence.index, end: source.length });
 
   ranges.sort((a, b) => a.start - b.start || a.end - b.end);
   const merged: MarkdownRange[] = [];
@@ -200,6 +191,21 @@ export function markdownProtectedRanges(text: unknown): MarkdownRange[] {
     else merged.push({ start: r.start, end: r.end });
   }
   return merged;
+}
+
+function forEachMarkdownLine(source: string, visit: (line: string, lineStart: number, separatorLength: number) => void): void {
+  let lineStart = 0;
+  for (;;) {
+    const newline = source.indexOf("\n", lineStart);
+    if (newline < 0) {
+      visit(source.slice(lineStart), lineStart, 0);
+      return;
+    }
+    const hasCarriageReturn = newline > lineStart && source.charCodeAt(newline - 1) === 13;
+    const lineEnd = hasCarriageReturn ? newline - 1 : newline;
+    visit(source.slice(lineStart, lineEnd), lineStart, hasCarriageReturn ? 2 : 1);
+    lineStart = newline + 1;
+  }
 }
 
 function appendInlineCodeSpanRanges(line: string, lineStart: number, ranges: MarkdownRange[]): void {

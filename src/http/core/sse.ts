@@ -95,5 +95,8 @@ function sseFrameBytes(chunk: string): Uint8Array {
 }
 
 function createSSETransform(): TransformStream<Uint8Array, Uint8Array> {
-  return new TransformStream<Uint8Array, Uint8Array>();
+  const Ctor = (globalThis as typeof globalThis & {
+    IdentityTransformStream?: new () => TransformStream<Uint8Array, Uint8Array>;
+  }).IdentityTransformStream || TransformStream;
+  return new Ctor();
 }

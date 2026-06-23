@@ -1,4 +1,5 @@
 import { isRecord, type UnknownRecord } from "../shared/types";
+import { TEXT_DECODER, TEXT_ENCODER, UTF8_FATAL_DECODER } from "../shared/runtime";
 
 export type ParsedUploadUrl = { b64: string; mime: string };
 export type ParsedImageUrl = ParsedUploadUrl;
@@ -25,7 +26,7 @@ export function parseDataUrl(url: unknown): ParsedDataUrl | null {
   const mime = cleanUploadMime((meta.split(";")[0] || "").toLowerCase());
   if (/;base64(?:;|$)/i.test(meta)) return { b64: payload, mime };
   try {
-    return { b64: bytesToBase64(new TextEncoder().encode(decodeURIComponent(payload))), mime };
+    return { b64: bytesToBase64(TEXT_ENCODER.encode(decodeURIComponent(payload))), mime };
   } catch (_) {
     return null;
   }
@@ -297,7 +298,7 @@ export function detectUploadMimeFromBytes(bytes: Uint8Array): string {
   if (startsWithAscii(bytes, "%PDF-")) return "application/pdf";
   if (startsWithBytes(bytes, [0x50, 0x4b, 0x03, 0x04])) return "application/zip";
   if (looksLikeUtf8Text(bytes)) {
-    const text = new TextDecoder().decode(bytes.slice(0, Math.min(bytes.byteLength, 4096))).trimStart();
+    const text = TEXT_DECODER.decode(bytes.slice(0, Math.min(bytes.byteLength, 4096))).trimStart();
     if (text.startsWith("{") || text.startsWith("[")) return "application/json";
     return "text/plain";
   }
@@ -410,7 +411,7 @@ function looksLikeUtf8Text(bytes: Uint8Array): boolean {
   }
   if (controls > 0) return false;
   try {
-    new TextDecoder("utf-8", { fatal: true }).decode(sample);
+    UTF8_FATAL_DECODER.decode(sample);
     return true;
   } catch (_) {
     return false;

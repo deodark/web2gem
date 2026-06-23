@@ -165,6 +165,8 @@ function* iterateLines(source: string): Generator<string> {
 
 export function createStreamTextExtractor() {
   let prevVisible = "";
+  let prevVisibleHead = "";
+  let prevVisibleTail = "";
   let prevRaw = "";
   let prevRawHead = "";
   let prevRawTail = "";
@@ -175,6 +177,14 @@ export function createStreamTextExtractor() {
     prevRawHead = raw.slice(0, STREAM_APPEND_PROBE_CHARS);
     prevRawTail = raw.slice(-STREAM_APPEND_PROBE_CHARS);
     prevRawHasArtifacts = hasArtifactMarkers(raw);
+  };
+  const rememberVisible = (visible: string) => {
+    prevVisible = visible;
+    prevVisibleHead = visible.slice(0, STREAM_APPEND_PROBE_CHARS);
+    prevVisibleTail = visible.slice(-STREAM_APPEND_PROBE_CHARS);
+  };
+  const appendVisibleDelta = (delta: string) => {
+    rememberVisible(prevVisible + delta);
   };
   const rawAppendDelta = (raw: string): string | null => {
     if (!prevRaw || raw.length <= prevRaw.length || prevRawHasArtifacts) return null;
@@ -190,6 +200,18 @@ export function createStreamTextExtractor() {
     if (hasArtifactMarkers(prevRawTail + delta)) return null;
     return delta;
   };
+  const visibleAppendDelta = (visible: string): string | null => {
+    if (!prevVisible || visible.length <= prevVisible.length) return null;
+    if (prevVisible.length <= STREAM_APPEND_PROBE_CHARS * 2) {
+      if (!visible.startsWith(prevVisible)) return null;
+    } else if (
+      visible.slice(0, prevVisibleHead.length) !== prevVisibleHead
+      || visible.slice(prevVisible.length - prevVisibleTail.length, prevVisible.length) !== prevVisibleTail
+    ) {
+      return null;
+    }
+    return visible.slice(prevVisible.length);
+  };
   const consumeLine = function* (line: unknown): Generator<string> {
     for (const t of extractTextsFromLine(line)) {
       const raw = String(t || "");
@@ -197,31 +219,34 @@ export function createStreamTextExtractor() {
       const appendedRawDelta = rawAppendDelta(raw);
       if (appendedRawDelta !== null) {
         delta = appendedRawDelta;
-        prevVisible += delta;
+        appendVisibleDelta(delta);
         rememberRaw(raw);
       } else {
         const visible = stripArtifacts(raw);
         if (!prevVisible) {
           delta = visible;
-          prevVisible = visible;
+          rememberVisible(visible);
           rememberRaw(raw);
-        } else if (visible.length > prevVisible.length && visible.startsWith(prevVisible)) {
-          delta = visible.slice(prevVisible.length);
-          prevVisible = visible;
-          rememberRaw(raw);
-        } else if (prevVisible.startsWith(visible)) {
-          continue;
         } else {
-          delta = trimContinuationOverlap(prevVisible, visible);
-          if (!delta) {
-            if (visible.length > prevVisible.length) {
-              prevVisible = visible;
-              rememberRaw(raw);
-            }
+          const appendedVisibleDelta = visibleAppendDelta(visible);
+          if (appendedVisibleDelta !== null) {
+            delta = appendedVisibleDelta;
+            rememberVisible(visible);
+            rememberRaw(raw);
+          } else if (prevVisible.startsWith(visible)) {
             continue;
+          } else {
+            delta = trimContinuationOverlap(prevVisible, visible);
+            if (!delta) {
+              if (visible.length > prevVisible.length) {
+                rememberVisible(visible);
+                rememberRaw(raw);
+              }
+              continue;
+            }
+            appendVisibleDelta(delta);
+            rememberRaw(raw);
           }
-          prevVisible += delta;
-          rememberRaw(raw);
         }
       }
       if (!started) delta = delta.replace(/^\s+/, "");

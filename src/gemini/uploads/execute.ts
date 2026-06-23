@@ -328,7 +328,7 @@ async function dedupeKey(materialized: MaterializedAttachment): Promise<string> 
   bytes.set(prefix, 0);
   bytes.set(materialized.bytes, prefix.byteLength);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return (new Uint8Array(digest) as Uint8Array & { toHex(): string }).toHex();
 }
 
 function dropCodeFromError(candidate: AttachmentCandidate, error: unknown): AttachmentDrop["code"] {

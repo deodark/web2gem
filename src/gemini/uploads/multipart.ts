@@ -85,5 +85,5 @@ function escapeMultipartFilename(filename: string): string {
 function randomBoundarySuffix(): string {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
-  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return (bytes as Uint8Array & { toHex(): string }).toHex();
 }
