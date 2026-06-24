@@ -7,6 +7,18 @@ async function collectEvents(iterable) {
   return events;
 }
 
+function abortingAsyncIterable(error) {
+  return {
+    [Symbol.asyncIterator]() {
+      return {
+        async next() {
+          throw error;
+        },
+      };
+    },
+  };
+}
+
 export const suiteName = "toolcall";
 export const cases = [
   ["emits plain text deltas and token counts", async () => {
@@ -33,16 +45,13 @@ export const cases = [
     assert.deepEqual(events.map((event) => event.type), ["text_delta", "done"]);
     assert.equal(events[0].text, "ok");
 
-    async function* aborting() {
-      const err = new Error("plain abort");
-      err.name = "AbortError";
-      throw err;
-    }
+    const plainAbort = new Error("plain abort");
+    plainAbort.name = "AbortError";
     await assert.rejects(
       () => collectEvents(mod.streamPlainCompletionEvents({
         ...fakeStreamProvider([]),
         streamText() {
-          return aborting();
+          return abortingAsyncIterable(plainAbort);
         },
       }, { prompt: "plain prompt", rm: { name: "gemini-3.5-flash" }, fileRefs: null })),
       /plain abort/,
@@ -91,13 +100,10 @@ export const cases = [
     assert.equal(result.streamErr.message, "tool stream broke");
     assert.equal(result.errMsg, "tool stream broke");
 
-    async function* abortingToolDeltas() {
-      const err = new Error("tool abort");
-      err.code = "request_aborted";
-      throw err;
-    }
+    const toolAbort = new Error("tool abort");
+    toolAbort.code = "request_aborted";
     await assert.rejects(
-      () => mod.consumeToolSieveTextDeltas(abortingToolDeltas(), { tools: [], toolPolicy: null }, () => {}),
+      () => mod.consumeToolSieveTextDeltas(abortingAsyncIterable(toolAbort), { tools: [], toolPolicy: null }, () => {}),
       /tool abort/,
     );
   }],
@@ -156,13 +162,10 @@ export const cases = [
     const splitSummary = await mod.consumeBufferedToolTextDeltas(chunks(splitHeldCandidate), () => {});
     assert.equal(splitSummary.bufferedText, splitHeldCandidate.join(""));
 
-    async function* abortingBuffered() {
-      const err = new Error("buffer abort");
-      err.name = "AbortError";
-      throw err;
-    }
+    const bufferAbort = new Error("buffer abort");
+    bufferAbort.name = "AbortError";
     await assert.rejects(
-      () => mod.consumeBufferedToolTextDeltas(abortingBuffered(), () => {}),
+      () => mod.consumeBufferedToolTextDeltas(abortingAsyncIterable(bufferAbort), () => {}),
       /buffer abort/,
     );
   }],
@@ -289,9 +292,22 @@ export const cases = [
     const candidate = "<|DSML|tool_calls><|DSML|invoke name=\"Read\"><|DSML|parameter name=\"path\"><![CDATA[README.md]]></|DSML|parameter></|DSML|invoke></|DSML|tool_calls>";
     assert.deepEqual(mod.processToolSieveChunk(state, candidate.slice(0, 32)), []);
     assert.deepEqual(mod.processToolSieveChunk(state, candidate.slice(32)), []);
+    assert.equal(state.parsedToolCandidateResult.calls[0].name, "Read");
+    assert.equal(state.parsedToolCandidateLength, candidate.length);
     const flushed = mod.flushToolSieve(state, [{ type: "function", function: { name: "Read", parameters: { type: "object" } } }]);
     assert.equal(flushed.toolCalls[0].function.name, "Read");
     assert.match(flushed.toolCalls[0].function.arguments, /README\.md/);
+  }],
+  ["reparses cached tool candidates when more text arrives before flush", async () => {
+    const state = mod.createToolSieveState();
+    const candidate = "<tool_calls><invoke name=\"Read\"><parameter name=\"path\">README.md</parameter></invoke></tool_calls>";
+    assert.deepEqual(mod.processToolSieveChunk(state, candidate.slice(0, 32)), []);
+    assert.deepEqual(mod.processToolSieveChunk(state, candidate.slice(32)), []);
+    assert.equal(state.parsedToolCandidateResult.calls[0].name, "Read");
+    assert.deepEqual(mod.processToolSieveChunk(state, " trailing text"), []);
+    const flushed = mod.flushToolSieve(state, [{ type: "function", function: { name: "Read", parameters: { type: "object" } } }]);
+    assert.equal(flushed.text, "trailing text");
+    assert.equal(flushed.toolCalls[0].function.name, "Read");
   }],
   ["uses canonical DSML fast path for plain XML tool blocks", async () => {
     const longPath = "x".repeat(16 * 1024);

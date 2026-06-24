@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Static Gate
+        run: pnpm check:static
+
       - name: TypeScript Gate
         run: pnpm typecheck
 
@@ -52,6 +55,9 @@ jobs:
 
       - name: Smoke Gate
         run: pnpm smoke
+
+      - name: Bundle Size Gate
+        run: pnpm check:size
 
   node-unit:
     name: Node Unit (${{ matrix.os }})

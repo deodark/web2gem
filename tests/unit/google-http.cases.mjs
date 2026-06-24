@@ -650,22 +650,29 @@ export const cases = [
     assert.match(body.candidates[0].content.parts[0].text, /unable to generate a response/);
   }],
   ["streams Google plain responses through generate handler", async () => {
-    const resp = await mod.handleGoogleGenerate({
-      contents: [{ role: "user", parts: [{ text: "say hi" }] }],
-    }, {
-      default_model: "gemini-3.5-flash",
-      current_input_file_enabled: false,
-      current_input_file_min_bytes: 1000000,
-      current_input_file_name: "message.txt",
-      current_tools_file_name: "tools.txt",
-      cookie: "",
-      log_requests: false,
-    }, fakeStreamProvider(["he", "llo"]), "/v1beta/models/gemini-3.5-flash:streamGenerateContent", true);
+    const logs = [];
+    let resp;
+    let body = "";
+    await withConsoleLog((line) => logs.push(String(line)), async () => {
+      resp = await mod.handleGoogleGenerate({
+        contents: [{ role: "user", parts: [{ text: "say hi" }] }],
+      }, {
+        default_model: "gemini-3.5-flash",
+        current_input_file_enabled: false,
+        current_input_file_min_bytes: 1000000,
+        current_input_file_name: "message.txt",
+        current_tools_file_name: "tools.txt",
+        cookie: "",
+        log_requests: true,
+      }, fakeStreamProvider(["he", "llo"]), "/v1beta/models/gemini-3.5-flash:streamGenerateContent", true);
+      body = await resp.text();
+    });
     assert.equal(resp.status, 200);
-    const body = await resp.text();
     assert.match(body, /"text":"he"/);
     assert.match(body, /"text":"llo"/);
     assert.match(body, /"finishReason":"STOP"/);
+    assert.equal(logs.some((line) => line.includes("stage=google_prepare")), true);
+    assert.equal(logs.some((line) => line.includes("stage=google_stream_generate")), true);
   }],
   ["streams Google upstream errors through generate handler", async () => {
     const resp = await mod.handleGoogleGenerate({
@@ -691,23 +698,30 @@ export const cases = [
     assert.equal(frames[0].modelVersion, "gemini-3.5-flash");
   }],
   ["streams Google tool calls through generate handler", async () => {
-    const resp = await mod.handleGoogleGenerate({
-      contents: [{ role: "user", parts: [{ text: "read file" }] }],
-      tools: [{ functionDeclarations: [{ name: "Read", parameters: { type: "object" } }] }],
-      toolConfig: { functionCallingConfig: { mode: "ANY" } },
-    }, {
-      default_model: "gemini-3.5-flash",
-      current_input_file_enabled: false,
-      current_input_file_min_bytes: 1000000,
-      current_input_file_name: "message.txt",
-      current_tools_file_name: "tools.txt",
-      cookie: "",
-      log_requests: false,
-    }, fakeStreamProvider(["<tool_calls><invoke name=\"Read\"><parameter name=\"path\">README.md</parameter></invoke></tool_calls>"]), "/v1beta/models/gemini-3.5-flash:streamGenerateContent", true);
+    const logs = [];
+    let resp;
+    let body = "";
+    await withConsoleLog((line) => logs.push(String(line)), async () => {
+      resp = await mod.handleGoogleGenerate({
+        contents: [{ role: "user", parts: [{ text: "read file" }] }],
+        tools: [{ functionDeclarations: [{ name: "Read", parameters: { type: "object" } }] }],
+        toolConfig: { functionCallingConfig: { mode: "ANY" } },
+      }, {
+        default_model: "gemini-3.5-flash",
+        current_input_file_enabled: false,
+        current_input_file_min_bytes: 1000000,
+        current_input_file_name: "message.txt",
+        current_tools_file_name: "tools.txt",
+        cookie: "",
+        log_requests: true,
+      }, fakeStreamProvider(["<tool_calls><invoke name=\"Read\"><parameter name=\"path\">README.md</parameter></invoke></tool_calls>"]), "/v1beta/models/gemini-3.5-flash:streamGenerateContent", true);
+      body = await resp.text();
+    });
     assert.equal(resp.status, 200);
-    const body = await resp.text();
     assert.match(body, /"functionCall":\{"name":"Read","args":\{"path":"README.md"\}\}/);
     assert.match(body, /"finishReason":"STOP"/);
+    assert.equal(logs.some((line) => line.includes("stage=google_stream_generate")), true);
+    assert.equal(logs.some((line) => line.includes("tools=1")), true);
   }],
   ["streams Google plain deltas and usage done payload", async () => {
     const writes = [];

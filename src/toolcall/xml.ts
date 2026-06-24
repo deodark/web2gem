@@ -41,15 +41,19 @@ export function appendMarkupValue(obj: Record<string, unknown>, key: string, val
 export function parseTagAttributes(attrs: unknown): Record<string, string> {
   const out: Record<string, string> = {};
   const re = /\b([a-z0-9_:-]+)\s*=\s*("([^"]*)"|'([^']*)')/gi;
-  let m;
-  while ((m = re.exec(String(attrs || ""))) !== null) {
+  const source = String(attrs || "");
+  let m: RegExpExecArray | null = re.exec(source);
+  while (m !== null) {
     const key = m[1];
     if (key) out[key] = decodeXmlEntities(m[3] != null ? m[3] : m[4] || "");
+    m = re.exec(source);
   }
   const bare = /\b([a-z0-9_:-]+)\s*=\s*([^\s"'=<>`]+)/gi;
-  while ((m = bare.exec(String(attrs || ""))) !== null) {
+  m = bare.exec(source);
+  while (m !== null) {
     const key = m[1];
     if (key && !(key in out)) out[key] = decodeXmlEntities(m[2] || "");
+    m = bare.exec(source);
   }
   return out;
 }

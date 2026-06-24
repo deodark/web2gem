@@ -34,6 +34,33 @@ export const cases = [
       assert.match(result.stderr, /responses-stream\.ts/);
     });
   }],
+  ["accepts bundle size within the configured budget", async () => {
+    await withTempFile("worker.js", "x".repeat(128), async (bundlePath) => {
+      const result = await runNodeScript("scripts/check-bundle-size.mjs", bundlePath, {
+        BUNDLE_SIZE_LIMIT_BYTES: "256",
+      });
+      assert.equal(result.code, 0);
+      assert.match(result.stdout, /bundle size ok/);
+    });
+  }],
+  ["rejects bundle size over the configured budget", async () => {
+    await withTempFile("worker.js", "x".repeat(257), async (bundlePath) => {
+      const result = await runNodeScript("scripts/check-bundle-size.mjs", bundlePath, {
+        BUNDLE_SIZE_LIMIT_BYTES: "256",
+      });
+      assert.equal(result.code, 1);
+      assert.match(result.stderr, /Bundle size gate failed/);
+    });
+  }],
+  ["skips Docker smoke when Docker is not installed", async () => {
+    await withTempDir(async (dir) => {
+      const result = await runNodeScript("scripts/docker-smoke.mjs", null, {
+        PATH: dir,
+      });
+      assert.equal(result.code, 0);
+      assert.match(result.stdout, /Docker smoke skipped: docker executable not found/);
+    });
+  }],
   ["keeps Docker Compose port mapping aligned with the container listener", async () => {
     const compose = await readFile("compose.yaml", "utf8");
     assert.match(compose, /\$\{PORT:-52389\}:\$\{PORT:-52389\}/);
@@ -63,6 +90,7 @@ function fullCoverageSummary() {
     total: coverageEntry(),
     "src/completion/index.ts": coverageEntry(),
     "src/config/index.ts": coverageEntry(),
+    "src/gemini/app-page.ts": coverageEntry(),
     "src/gemini/index.ts": coverageEntry(),
     "src/gemini/client/index.ts": coverageEntry(),
     "src/gemini/transport/http.ts": coverageEntry(),
@@ -70,6 +98,7 @@ function fullCoverageSummary() {
     "src/http/core/json.ts": coverageEntry(),
     "src/http/google/handlers.ts": coverageEntry(),
     "src/http/openai/chat.ts": coverageEntry(),
+    "src/http/openai/responses.ts": coverageEntry(),
     "src/http/openai/responses-stream.ts": coverageEntry(),
     "src/http/stream/coalescer.ts": coverageEntry(),
     "src/models/index.ts": coverageEntry(),
@@ -93,9 +122,30 @@ async function withCoverageSummary(summary, run) {
   }
 }
 
-function runNodeScript(script, arg) {
+async function withTempFile(filename, body, run) {
+  const dir = await mkdtemp(join(tmpdir(), "gemini-script-"));
+  try {
+    const path = join(dir, filename);
+    await writeFile(path, body, "utf8");
+    await run(path);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+async function withTempDir(run) {
+  const dir = await mkdtemp(join(tmpdir(), "gemini-script-"));
+  try {
+    await run(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
+
+function runNodeScript(script, arg, env = {}) {
   return new Promise((resolve) => {
-    execFile(process.execPath, [script, arg], { cwd: process.cwd() }, (error, stdout, stderr) => {
+    const args = arg == null ? [script] : [script, arg];
+    execFile(process.execPath, args, { cwd: process.cwd(), env: { ...process.env, ...env } }, (error, stdout, stderr) => {
       resolve({
         code: error && typeof error.code === "number" ? error.code : 0,
         stdout,

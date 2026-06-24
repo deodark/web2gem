@@ -2,9 +2,9 @@ import { createMarkdownProtectionLookup, type MarkdownProtectionLookup } from ".
 
 export const TOOL_MARKUP_CONFUSABLE_RE = /[※＜〈＞〉／＝＂“”＇‘’｜！\u3000ｄＤｓＳЅｍＭΜｌＬοоаｅΑАС\u200b\ufeff]/;
 
-const TOOL_TAG_RE = /<\s*\/?\s*(?:\|?\s*D?SML\s*[|!、\u0002␂_\-\s▁]+|D?SML(?=tool_calls|tool-calls|toolcalls|invoke|parameter)|[\w$-]+[|!、\u0002␂_\-\s▁💥]+)?\s*(tool_calls|tool-calls|toolcalls|invoke|parameter)\b/ig;
+const TOOL_TAG_RE = /<\s*\/?\s*(?:\|?\s*D?SML\s*[|!、\u0002␂_\-\s▁]+|D?SML(?=tool_calls|tool-calls|toolcalls|invoke|parameter)|[\w$-]+[|!、\u0002␂_\-\s▁💥]+)?\s*(tool_calls|tool-calls|toolcalls|invoke|parameter)\b/igu;
 const TOOL_CAMEL_TAG_RE = /<\s*\/?\s*[A-Za-z][A-Za-z0-9_$-]*(ToolCalls|Invoke|Parameter)\b/g;
-const TOOL_TAG_SHELL_QUICK_AT_OPEN_RE = /<\s*\/?\s*(?:\|?\s*D?SML\s*(?:[|!、\u0002␂_\-\s▁]+|(?=tool_calls|tool-calls|toolcalls|invoke|parameter))|tool_calls\b|tool-calls\b|toolcalls\b|invoke\b|parameter\b|[A-Za-z][A-Za-z0-9_$-]*(?:ToolCalls|Invoke|Parameter)\b|[\w$-]+(?:[|!、\u0002␂_\-▁💥]+|\s+)\s*(?:tool_calls|tool-calls|toolcalls|invoke|parameter)\b)/iy;
+const TOOL_TAG_SHELL_QUICK_AT_OPEN_RE = /<\s*\/?\s*(?:\|?\s*D?SML\s*(?:[|!、\u0002␂_\-\s▁]+|(?=tool_calls|tool-calls|toolcalls|invoke|parameter))|tool_calls\b|tool-calls\b|toolcalls\b|invoke\b|parameter\b|[A-Za-z][A-Za-z0-9_$-]*(?:ToolCalls|Invoke|Parameter)\b|[\w$-]+(?:[|!、\u0002␂_\-▁💥]+|\s+)\s*(?:tool_calls|tool-calls|toolcalls|invoke|parameter)\b)/iyu;
 const TOOL_CALLS_CLOSE_RE = /<\s*\/\s*(?:\|?\s*D?SML\s*[|!、\u0002␂_\-\s▁]+)?\s*(tool_calls|tool-calls|toolcalls)\s*>/i;
 const PARTIAL_TOOL_PREFIXES = [
   "<|dsml|tool_calls", "<|dsml|tool-calls", "<|dsml|toolcalls", "<|dsml|invoke", "<|dsml|parameter",
@@ -104,10 +104,11 @@ export function normalizeMarkupTagShell(tag: unknown): string {
 
 function findRegexCandidateStart(source: string, re: RegExp, markdown: MarkdownProtectionLookup | null): number {
   re.lastIndex = 0;
-  let m;
-  while ((m = re.exec(source)) !== null) {
+  let m: RegExpExecArray | null = re.exec(source);
+  while (m !== null) {
     if (!markdown || !markdown.isProtected(m.index)) return m.index;
     re.lastIndex = m.index + Math.max(1, m[0].length);
+    m = re.exec(source);
   }
   return -1;
 }

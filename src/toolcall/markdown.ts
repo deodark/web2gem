@@ -32,12 +32,13 @@ export function isInsideSimpleMarkdownCodeSpan(text: unknown, index: number): bo
   const line = source.slice(lineStart, lineEnd);
   const rel = pos - lineStart;
   SIMPLE_CODE_SPAN_RE.lastIndex = 0;
-  let m;
-  while ((m = SIMPLE_CODE_SPAN_RE.exec(line)) !== null) {
+  let m: RegExpExecArray | null = SIMPLE_CODE_SPAN_RE.exec(line);
+  while (m !== null) {
     const start = m.index;
     const end = m.index + m[0].length;
     if (rel >= start && rel < end) return true;
     SIMPLE_CODE_SPAN_RE.lastIndex = m.index + Math.max(1, m[0].length);
+    m = SIMPLE_CODE_SPAN_RE.exec(line);
   }
   return false;
 }

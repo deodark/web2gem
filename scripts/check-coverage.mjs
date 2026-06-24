@@ -25,13 +25,18 @@ const lineGates = [
 ];
 
 const branchGates = [
-  ["src/http/openai", 70],
+  ["src/gemini/app-page.ts", 60],
+  ["src/http/google/handlers.ts", 70],
+  ["src/http/openai/chat.ts", 68],
+  ["src/http/openai", 79],
+  ["src/http/openai/responses.ts", 74],
   ["src/http/openai/responses-stream.ts", 75],
-  ["src/promptcompat", 68],
+  ["src/promptcompat", 75],
   ["src/promptcompat/history.ts", 75],
-  ["src/promptcompat/responses-input.ts", 60],
+  ["src/promptcompat/responses-input.ts", 69],
   ["src/shared/tokens.ts", 70],
   ["src/toolcall/structured.ts", 75],
+  ["src/toolstream/index.ts", 68],
 ];
 
 const summary = JSON.parse(await readFile(summaryPath, "utf8"));

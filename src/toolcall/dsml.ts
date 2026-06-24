@@ -200,7 +200,7 @@ export function normalizeDSMLToolCallMarkup(text: unknown): string {
     .replace(/<!\s*\[\s*CDATA\s*\[/gi, "<![CDATA[")
     .replace(/<\s*[!、]\s*\[\s*CDATA\s*\[/gi, "<![CDATA[")
     .replace(/\]\]\s*>/g, "]]>")
-    .replace(/<\s*(\/?)\s*(?:(?:\|?\s*D?SML\s*[|!、\u0002␂_\-\s▁]+)+(?:D?SML\s*[|!、\u0002␂_\-\s▁]+)*|D?SML(?=tool_calls|tool-calls|toolcalls|invoke|parameter)|[\w$-]+[|!、\u0002␂_\-\s▁💥]+)?\s*(tool_calls|tool-calls|toolcalls|invoke|parameter)\b([^>]*)>/gi,
+    .replace(/<\s*(\/?)\s*(?:(?:\|?\s*D?SML\s*[|!、\u0002␂_\-\s▁]+)+(?:D?SML\s*[|!、\u0002␂_\-\s▁]+)*|D?SML(?=tool_calls|tool-calls|toolcalls|invoke|parameter)|[\w$-]+[|!、\u0002␂_\-\s▁💥]+)?\s*(tool_calls|tool-calls|toolcalls|invoke|parameter)\b([^>]*)>/giu,
       (_m: string, close: string, name: string, rest: string) => `<${close ? "/" : ""}${canonicalToolTagName(name)}${rest}>`)
     .replace(/<\s*(\/?)\s*[A-Za-z][A-Za-z0-9_$-]*(ToolCalls|Invoke|Parameter)\b([^>]*)>/g,
       (_m: string, close: string, name: string, rest: string) => `<${close ? "/" : ""}${canonicalToolTagName(name)}${rest}>`)

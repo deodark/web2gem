@@ -939,18 +939,26 @@ export const cases = [
     assert.equal(generated, false);
   }],
   ["streams OpenAI Responses plain output through handler path", async () => {
-    const resp = await mod.handleResponses({
-      model: "gemini-3.5-flash",
-      stream: true,
-      input: "say hello",
-    }, baseConfig(), fakeStreamProvider(["he", "llo"]));
+    const logs = [];
+    let resp;
+    let body = "";
+    await withConsoleLog((line) => logs.push(String(line)), async () => {
+      resp = await mod.handleResponses({
+        model: "gemini-3.5-flash",
+        stream: true,
+        input: "say hello",
+      }, baseConfig({ log_requests: true }), fakeStreamProvider(["he", "llo"]));
+      body = await resp.text();
+    });
     assert.equal(resp.status, 200);
-    const frames = collectSSEData([await resp.text()]);
+    const frames = collectSSEData([body]);
     assert.equal(frames[0].type, "response.created");
     assert.equal(frames.filter((frame) => frame.type === "response.output_text.delta").map((frame) => frame.delta).join(""), "hello");
     const completed = frames.find((frame) => frame.type === "response.completed");
     assert.equal(completed.response.output[0].content[0].text, "hello");
     assert.equal(completed.response.status, "completed");
+    assert.equal(logs.some((line) => line.includes("stage=openai_responses_prepare")), true);
+    assert.equal(logs.some((line) => line.includes("stage=openai_responses_stream_generate")), true);
   }],
   ["streams OpenAI Responses tool-choice none violations through handler path", async () => {
     const resp = await mod.handleResponses({

@@ -1,10 +1,17 @@
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
 const testBundle = process.env.TEST_BUNDLE || "../../dist/worker.test.js";
 export const mod = await importTestBundle(testBundle);
 
 async function importTestBundle(bundle) {
-  if (bundle === "../../dist/worker.test.js") return import("../../dist/worker.test.js");
-  if (bundle === "../../dist-coverage/worker.test.js") return import("../../dist-coverage/worker.test.js");
+  if (bundle === "../../dist/worker.test.js") return import(workspaceFileUrl("dist/worker.test.js"));
+  if (bundle === "../../dist-coverage/worker.test.js") return import(workspaceFileUrl("dist-coverage/worker.test.js"));
   return import(new URL(bundle, import.meta.url).href);
+}
+
+function workspaceFileUrl(path) {
+  return pathToFileURL(resolve(process.cwd(), path)).href;
 }
 
 export async function* chunks(items, throwAfter = null) {

@@ -40,7 +40,7 @@ export async function readJsonRequest(request: Request, options: ReadJsonRequest
     const err = e as { message?: unknown } | null | undefined;
     return { error: `failed to read request body: ${(err && err.message) || e}`, status: 400 };
   }
-  let bodyText;
+  let bodyText: string;
   try {
     bodyText = UTF8_FATAL_DECODER.decode(buf);
   } catch (_) {

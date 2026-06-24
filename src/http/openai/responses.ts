@@ -69,7 +69,7 @@ export async function handleResponses(req: Record<string, unknown> | undefined, 
     });
   }
 
-  let text;
+  let text: string;
   const generationStart = logRequests ? nowMs() : 0;
   try {
     text = await runCompletionText(provider, { prompt, rm, fileRefs });

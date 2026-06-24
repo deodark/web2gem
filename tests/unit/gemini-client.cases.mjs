@@ -13,6 +13,10 @@ function wrbLine(texts) {
   return JSON.stringify([["wrb.fr", null, JSON.stringify(inner)]]);
 }
 
+function textResponse(text) {
+  return new Response(text);
+}
+
 export const suiteName = "gemini client";
 export const cases = [
   ["strips generated code artifacts from Gemini text", async () => {
@@ -40,6 +44,14 @@ export const cases = [
     assert.equal(mod.extractResponseText(raw), "first plus more");
     assert.match(mod.wrbResponseShapeSummary(raw), /wrbLines=2/);
     assert.match(mod.wrbResponseShapeSummary(raw), /textParts=2/);
+  }],
+  ["bounds app page marker scanning for unterminated quoted values", async () => {
+    const oversized = `"qKIAYe":"${"x".repeat(10 * 1024)}`;
+    assert.deepEqual(await mod.extractGeminiAppPageTokens(textResponse(oversized)), {});
+    assert.equal(await mod.extractGeminiPushId(textResponse(oversized)), "");
+
+    const buildLabel = "boq_assistant-bard-web-server_20260618.10_p0";
+    assert.equal(await mod.extractGeminiBuildLabel(textResponse(`${oversized}\n${buildLabel}`)), buildLabel);
   }],
   ["streams only new text deltas from repeated WRB lines", async () => {
     const extractor = mod.createStreamTextExtractor();

@@ -1,5 +1,10 @@
 import { spawn } from "node:child_process";
 
+if (!(await commandAvailable("docker"))) {
+  console.log("Docker smoke skipped: docker executable not found");
+  process.exit(0);
+}
+
 const image = `web2gem:smoke-${process.pid}`;
 let container = "";
 
@@ -89,6 +94,15 @@ function delay(ms) {
 
 function assert(ok, message) {
   if (!ok) throw new Error(`Docker smoke failed: ${message}`);
+}
+
+async function commandAvailable(command) {
+  try {
+    await output(command, ["--version"], { allowFailure: true });
+    return true;
+  } catch (error) {
+    return !(error && typeof error === "object" && "code" in error && error.code === "ENOENT");
+  }
 }
 
 function run(command, args, options = {}) {

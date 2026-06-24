@@ -9,10 +9,12 @@
   "packageManager": "pnpm@11.6.0",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "check:static": "biome lint --diagnostic-level=error",
     "typecheck": "tsc --noEmit",
     "check:arch": "node scripts/check-architecture.mjs",
+    "check:size": "pnpm build && node scripts/check-bundle-size.mjs",
     "unit:quick": "node scripts/ensure-test-bundle-fresh.mjs && vitest run",
-    "unit": "node scripts/build.mjs --test-bundle && vitest run",
+    "unit": "node scripts/unit.mjs",
     "coverage": "node scripts/coverage.mjs",
     "coverage:ci": "node scripts/coverage.mjs --ci",
     "smoke": "node scripts/build.mjs --test-bundle && node scripts/smoke.mjs",
@@ -23,6 +25,7 @@
     "deploy": "pnpm build && wrangler deploy"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.1",
     "@cloudflare/workers-types": "^4.20260619.1",
     "@vitest/coverage-v8": "^4.1.9",
     "esbuild": "^0.28.1",

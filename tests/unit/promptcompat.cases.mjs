@@ -69,6 +69,27 @@ export const cases = [
       content: "ok",
     }), [{ role: "tool", content: "ok", tool_call_id: "call_7", name: "Lookup" }]);
   }],
+  ["normalizes additional Responses item shapes without accepting unknown objects", async () => {
+    const messages = mod.normalizeResponsesInputValueAsMessages([
+      { type: "message", role: "assistant", text: "assistant text" },
+      { role: "assistant", content: null, tool_calls: [{ id: "call_existing", type: "function", function: { name: "Existing", arguments: "{\"ok\":true}" } }] },
+      { type: "function_call", id: "call_nested", function: { name: "Nested", arguments: { query: "docs" } } },
+      { type: "tool_result", id: "call_nested", content: "nested result" },
+      { type: "output_text", text: "visible output" },
+      { type: "custom_event", text: "ignored text" },
+      { text: "ignored bare text" },
+    ]);
+
+    assert.equal(messages[0].role, "assistant");
+    assert.equal(messages[0].content, "assistant text");
+    assert.equal(messages[1].tool_calls[0].function.name, "Existing");
+    assert.equal(messages[1].tool_calls[1].id, "call_nested");
+    assert.equal(messages[1].tool_calls[1].function.name, "Nested");
+    assert.deepEqual(JSON.parse(messages[1].tool_calls[1].function.arguments), { query: "docs" });
+    assert.deepEqual(messages[2], { role: "tool", tool_call_id: "call_nested", name: "Nested", content: "nested result" });
+    assert.deepEqual(messages[3], { role: "user", content: "visible output" });
+    assert.equal(messages.length, 4);
+  }],
   ["preserves top-level Responses input_file items for upload collection", async () => {
     const messages = mod.normalizeResponsesInputValueAsMessages([
       { type: "input_text", text: "review this" },

@@ -6,6 +6,7 @@ export { createStreamTextExtractor, stripArtifacts } from "./gemini/client/parse
 export { configWithCachedGeminiBuildLabel, getCachedGeminiBuildLabel, getFreshGeminiBuildLabel, resetGeminiBuildLabelCacheForTest, setCachedGeminiBuildLabel, waitBeforeRetry } from "./gemini/client/retry";
 export { invalidGeminiCookieError, isInvalidGeminiCookieError, unverifiedGeminiCookieError } from "./gemini/client/errors";
 export { configWithActiveGeminiCookie, mergeSetCookieHeaders, parseCookieHeader, resetActiveGeminiCookieForTest, rotateGeminiCookieForRetry, rotateGeminiCookieForRetryWithReason, splitSetCookieHeader } from "./gemini/cookies";
+export { extractGeminiAppPageTokens, extractGeminiBuildLabel, extractGeminiPushId } from "./gemini/app-page";
 export {
   filenameFromUrl,
   firstNonEmptyString,

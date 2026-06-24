@@ -14,6 +14,7 @@ const PUSH_ID_MARKER: QuotedMarkerSpec<"push_id"> = { key: "push_id", marker: '"
 const CFB2H_MARKER = '"cfb2h":"';
 const BUILD_LABEL_PREFIX = "boq_assistant-bard-web-server_";
 const BUILD_LABEL_KEEP_CHARS = BUILD_LABEL_PREFIX.length + 128;
+const MAX_QUOTED_MARKER_VALUE_CHARS = 8 * 1024;
 
 export async function extractGeminiAppPageTokens(resp: TextStreamResponse): Promise<GeminiAppPageTokens> {
   const scanner = createQuotedMarkerScanner(APP_PAGE_TOKEN_MARKERS);
@@ -83,12 +84,21 @@ function createQuotedMarkerScanner<K extends string>(specs: readonly QuotedMarke
       if (active) {
         const end = pending.indexOf('"', pos);
         if (end < 0) {
-          active.value += pending.slice(pos);
+          const nextValue = active.value + pending.slice(pos);
+          if (nextValue.length > MAX_QUOTED_MARKER_VALUE_CHARS) {
+            active = null;
+            pending = pending.slice(Math.max(pos, pending.length - keepChars));
+            return;
+          }
+          active.value = nextValue;
           pending = "";
           return;
         }
-        result[active.key] = active.value + pending.slice(pos, end);
-        found.add(active.key);
+        const value = active.value + pending.slice(pos, end);
+        if (value.length <= MAX_QUOTED_MARKER_VALUE_CHARS) {
+          result[active.key] = value;
+          found.add(active.key);
+        }
         active = null;
         pos = end + 1;
         continue;

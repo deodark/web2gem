@@ -83,7 +83,7 @@ export async function handleChat(req: UnknownRecord, cfg: RuntimeConfig, provide
     }, { onError: (write, e) => writeOpenAIChatStreamError(write, cid, rm.name, e) });
   }
 
-  let text;
+  let text: string;
   const generationStart = logRequests ? nowMs() : 0;
   try {
     text = await runCompletionText(provider, { prompt, rm, fileRefs });
