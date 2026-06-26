@@ -81,8 +81,53 @@ function generatedImageCandidate(text = "final text", url = "https://lh3.googleu
   return candidate;
 }
 
+function webImageEntry(url = "https://images.example/web.png") {
+  const meta = [];
+  meta[0] = [url];
+  meta[4] = "web alt";
+  const entry = [];
+  entry[0] = meta;
+  entry[7] = ["web title"];
+  return entry;
+}
+
+function webImageCandidate(text = "web result", url = "https://images.example/web.png") {
+  const candidate = [];
+  candidate[22] = [text];
+  candidate[8] = [2];
+  candidate[12] = [];
+  candidate[12][1] = [[webImageEntry(url)]];
+  return candidate;
+}
+
+function baseGeminiClientConfig(overrides = {}) {
+  return {
+    gemini_origin: "https://gemini.example",
+    gemini_bl: "boq_test",
+    cookie: "",
+    sapisid: "",
+    request_timeout_sec: 180,
+    retry_attempts: 1,
+    retry_delay_sec: 0,
+    current_input_file_min_bytes: 1000000,
+    upstream_socket: false,
+    log_requests: false,
+    ...overrides,
+  };
+}
+
 function textResponse(text) {
   return new Response(text);
+}
+
+async function assertRejectsWithCode(run, code) {
+  try {
+    await run();
+  } catch (err) {
+    assert.equal(err.code, code);
+    return;
+  }
+  throw new Error(`expected rejection with code ${code}`);
 }
 
 export const suiteName = "gemini client";
@@ -126,12 +171,64 @@ export const cases = [
     assert.equal(parts.images[0].imageId, "img_1");
     assert.match(mod.richResponseShapeSummary(raw), /generatedImages=1/);
   }],
+  ["extracts rich web image metadata and card text", async () => {
+    const raw = richWrbLine(webImageCandidate("card answer"));
+    const parts = mod.extractResponseParts(raw);
+    assert.equal(parts.text, "card answer");
+    assert.equal(parts.generatedImageCount, 0);
+    assert.equal(parts.webImageCount, 1);
+    assert.equal(parts.images[0].source, "web");
+    assert.equal(parts.images[0].url, "https://images.example/web.png");
+    assert.equal(parts.images[0].alt, "web alt");
+    assert.equal(parts.images[0].title, "web title");
+  }],
   ["strips generated-image placeholder text while keeping rich images", async () => {
     const raw = richWrbLine(generatedImageCandidate("http://googleusercontent.com/image_generation_content/0"));
     const parts = mod.extractResponseParts(raw);
     assert.equal(parts.text, "");
     assert.equal(parts.generatedImageCount, 1);
     assert.equal(parts.images[0].url, "https://lh3.googleusercontent.com/generated=s1024-rj");
+  }],
+  ["prefers completed or richer repeated candidate states", async () => {
+    const incompleteTextOnly = [];
+    incompleteTextOnly[1] = ["draft"];
+
+    const completedGenerated = generatedImageCandidate("final");
+    const completedFirst = [
+      richWrbLine(incompleteTextOnly),
+      richWrbLine(completedGenerated),
+    ].join("\n");
+    const completedParts = mod.extractResponseParts(completedFirst);
+    assert.equal(completedParts.text, "final");
+    assert.equal(completedParts.generatedImageCount, 1);
+
+    const laterIncomplete = generatedImageCandidate("later incomplete with longer text");
+    laterIncomplete[8] = [1];
+    const keepCompleted = [
+      richWrbLine(completedGenerated),
+      richWrbLine(laterIncomplete),
+    ].join("\n");
+    const keepCompletedParts = mod.extractResponseParts(keepCompleted);
+    assert.equal(keepCompletedParts.text, "final");
+    assert.equal(keepCompletedParts.generatedImageCount, 1);
+
+    const richerIncomplete = generatedImageCandidate("richer");
+    richerIncomplete[8] = [1];
+    const richerParts = mod.extractResponseParts([
+      richWrbLine(incompleteTextOnly),
+      richWrbLine(richerIncomplete),
+    ].join("\n"));
+    assert.equal(richerParts.text, "richer");
+    assert.equal(richerParts.generatedImageCount, 1);
+  }],
+  ["handles malformed rich envelopes and invalid framed chunks without throwing", async () => {
+    assert.equal(mod.extractResponseParts(null).text, "");
+    assert.equal(mod.extractResponseParts(JSON.stringify([["wrb.fr", null, null]])).candidateCount, 0);
+    assert.equal(mod.extractResponseParts(JSON.stringify([["wrb.fr", null, "{"]])).candidateCount, 0);
+    assert.equal(mod.extractResponseParts(JSON.stringify([["wrb.fr", null, JSON.stringify([null, null, null, null, ["not an array"]])]])).candidateCount, 1);
+    assert.equal(mod.extractResponseParts(")]}'\n\n0\n[]").candidateCount, 0);
+    assert.equal(mod.extractResponseParts(")]}'\n\n999\n[]").candidateCount, 0);
+    assert.equal(mod.extractResponseParts(")]}'\n\n5\nnot-json").candidateCount, 0);
   }],
   ["extracts image-to-image generated image path and does not merge alternatives", async () => {
     const first = [];
@@ -193,6 +290,7 @@ export const cases = [
   ["maps numeric Gemini fatal part codes from inner payloads and envelopes", async () => {
     assert.equal(mod.extractResponseParts(fatalWrbLine(1013)).fatalCode, "1013");
     assert.equal(mod.extractResponseParts(fatalWrbLine(1052, "envelope")).fatalCode, "1052");
+    assert.match(mod.richResponseShapeSummary(fatalWrbLine(1060)), /fatalCode=1060/);
   }],
   ["dedupes repeated rich generated image frames", async () => {
     const raw = [
@@ -238,6 +336,97 @@ export const cases = [
     assert.match(calls[0], /^https:\/\/gemini\.example\/_\/BardChatUi\/data\/assistant\.lamda\.BardFrontendService\/StreamGenerate\?/);
     assert.equal(calls[1], imageUrl);
     assert.equal(calls.length, 2);
+  }],
+  ["fetches s1024 generated image fallback URLs and detects jpeg bytes", async () => {
+    const cfg = baseGeminiClientConfig();
+    const imageUrl = "https://lh3.googleusercontent.com/generated=s1024-rj";
+    const calls = [];
+    await withFetch(async (url) => {
+      calls.push(String(url));
+      if (String(url).includes("StreamGenerate")) {
+        return new Response(richWrbLine(generatedImageCandidate("", imageUrl)), { status: 200 });
+      }
+      if (String(url).endsWith("=s2048-rj")) {
+        return new Response("preview not ready", { status: 404 });
+      }
+      if (String(url) === imageUrl) {
+        return new Response(Uint8Array.from([0xff, 0xd8, 0xff, 0xdb, 0x00]), { status: 200, headers: { "content-type": "image/jpeg" } });
+      }
+      return new Response("not found", { status: 404 });
+    }, async () => {
+      const rich = await mod.generateRich(cfg, "draw image", 1, 4, null, null);
+      assert.equal(rich.images.length, 1);
+      assert.equal(rich.images[0].outputFormat, "jpeg");
+    });
+    assert.equal(calls[1], "https://lh3.googleusercontent.com/generated=s2048-rj");
+    assert.equal(calls[2], imageUrl);
+  }],
+  ["detects gif and webp generated image bytes", async () => {
+    const cfg = baseGeminiClientConfig();
+    const cases = [
+      {
+        url: "https://lh3.googleusercontent.com/generated-gif=s2048-rj",
+        bytes: new TextEncoder().encode("GIF89a...."),
+        format: "gif",
+      },
+      {
+        url: "https://lh3.googleusercontent.com/generated-webp=s2048-rj",
+        bytes: Uint8Array.from([0x52, 0x49, 0x46, 0x46, 0x10, 0x00, 0x00, 0x00, 0x57, 0x45, 0x42, 0x50]),
+        format: "webp",
+      },
+    ];
+    for (const item of cases) {
+      await withFetch(async (url) => {
+        if (String(url).includes("StreamGenerate")) {
+          return new Response(richWrbLine(generatedImageCandidate("", item.url)), { status: 200 });
+        }
+        if (String(url) === item.url) {
+          return new Response(item.bytes, { status: 200 });
+        }
+        return new Response("not found", { status: 404 });
+      }, async () => {
+        const rich = await mod.generateRich(cfg, `draw ${item.format}`, 1, 4, null, null);
+        assert.equal(rich.images.length, 1);
+        assert.equal(rich.images[0].outputFormat, item.format);
+      });
+    }
+  }],
+  ["keeps web-only rich images without fetching image bytes", async () => {
+    const cfg = baseGeminiClientConfig();
+    const calls = [];
+    await withFetch(async (url) => {
+      calls.push(String(url));
+      if (String(url).includes("StreamGenerate")) {
+        return new Response(richWrbLine(webImageCandidate("", "https://images.example/web-only.png")), { status: 200 });
+      }
+      throw new Error("web image URLs should not be fetched by generateRich");
+    }, async () => {
+      const rich = await mod.generateRich(cfg, "show web image", 1, 4, null, null);
+      assert.equal(rich.images.length, 1);
+      assert.equal(rich.images[0].source, "web");
+      assert.equal(rich.images[0].url, "https://images.example/web-only.png");
+      assert.equal(rich.images[0].base64, undefined);
+    });
+    assert.equal(calls.length, 1);
+  }],
+  ["maps rich fatal and empty upstream responses to image-specific errors", async () => {
+    const cfg = baseGeminiClientConfig();
+    await withFetch(async () => new Response(fatalWrbLine(1013), { status: 200 }), async () => {
+      await assertRejectsWithCode(
+        () => mod.generateRich(cfg, "draw image", 1, 4, null, null),
+        "upstream_image_provider_error",
+      );
+    });
+
+    await withFetch(async (url) => {
+      if (String(url).includes("/app")) return new Response("no fresh build label");
+      return new Response(JSON.stringify([["wrb.fr", null, JSON.stringify([null, null, null, null, [], "x".repeat(160)])]]), { status: 200 });
+    }, async () => {
+      await assertRejectsWithCode(
+        () => mod.generateRich(cfg, "draw image", 1, 4, null, null),
+        "upstream_image_generation_empty",
+      );
+    });
   }],
   ["encodes fetched generated image bytes without TypedArray base64 helpers", async () => {
     const cfg = {
